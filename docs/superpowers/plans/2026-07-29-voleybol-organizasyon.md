@@ -158,7 +158,7 @@ export default defineConfig({
 
 - [ ] **Step 5: Write `.gitignore` and `.env.example`**
 
-`.gitignore`:
+`.gitignore` — a `.gitignore` with just `.superpowers/` in it may already exist at the repo root (an unrelated tooling directory); if so, add these lines to it rather than overwriting the file:
 ```
 node_modules
 .next
