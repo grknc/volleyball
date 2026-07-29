@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { prisma } from '@/lib/db';
 import { getWeekView } from '@/lib/weekView';
 import { WeekView } from '@/components/WeekView';
+import { VolleyballInfo } from '@/components/VolleyballInfo';
 
 export default async function HomePage() {
   const latestWeek = await prisma.week.findFirst({ orderBy: { date: 'desc' } });
@@ -19,6 +20,7 @@ export default async function HomePage() {
       ) : (
         <WeekViewLoader weekId={latestWeek.id} />
       )}
+      <VolleyballInfo />
     </main>
   );
 }
