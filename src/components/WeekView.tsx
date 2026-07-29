@@ -1,10 +1,23 @@
 import type { WeekViewData } from '@/lib/weekView';
 
-export function WeekView({ week }: { week: WeekViewData }) {
-  function teamName(id: string) {
-    return week.teams.find((t) => t.id === id)?.name ?? id;
-  }
+function TeamRoster({ teamId, week }: { teamId: string; week: WeekViewData }) {
+  const team = week.teams.find((t) => t.id === teamId);
+  if (!team) return <>{teamId}</>;
+  return (
+    <details className="inline-block">
+      <summary className="cursor-pointer underline decoration-dotted">{team.name}</summary>
+      <ul className="mt-1 list-disc list-inside text-xs text-slate-500 font-normal">
+        {team.players.map((p) => (
+          <li key={p.id}>
+            {p.name} (Seviye {p.level})
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
 
+export function WeekView({ week }: { week: WeekViewData }) {
   return (
     <div>
       <h1 className="text-2xl font-bold mb-6">{new Date(week.date).toLocaleDateString('tr-TR')} Haftası</h1>
@@ -25,7 +38,9 @@ export function WeekView({ week }: { week: WeekViewData }) {
           <tbody>
             {week.standings.map((row) => (
               <tr key={row.teamId} className="border-b">
-                <td className="py-2">{row.teamName}</td>
+                <td className="py-2">
+                  <TeamRoster teamId={row.teamId} week={week} />
+                </td>
                 <td className="py-2">{row.played}</td>
                 <td className="py-2">{row.won}</td>
                 <td className="py-2">{row.lost}</td>
@@ -43,7 +58,8 @@ export function WeekView({ week }: { week: WeekViewData }) {
           {week.matches.map((match) => (
             <li key={match.id} className="border rounded p-2">
               <span>
-                {teamName(match.teamAId)} - {teamName(match.teamBId)}:{' '}
+                <TeamRoster teamId={match.teamAId} week={week} /> -{' '}
+                <TeamRoster teamId={match.teamBId} week={week} />:{' '}
               </span>
               {match.result ? (
                 <span className="font-semibold">
