@@ -13,9 +13,9 @@ export function VolleyballInfo() {
           </p>
           <ul className="list-disc list-inside text-sm text-slate-600 space-y-1">
             <li>Bir set genellikle 25 sayıya kadar oynanır (en az 2 sayı farkla kazanılır)</li>
-            <li>Maç, 5 set üzerinden 3 seti kazanan takımın galibiyetiyle sona erer</li>
+            <li>Maç, 5 set üzerinden 3 seti kazanan takımın galibiyetiyle sona erer (bizim haftalık organizasyonumuzda maçlar 2 set kazanma usulüyle oynanır)</li>
             <li>File yüksekliği erkeklerde 2.43 m, kadınlarda 2.24 m&apos;dir</li>
-            <li>Her sayı kazanımında oyuncular saat yönünde rotasyona girer</li>
+            <li>Servis hakkını rakipten alan takım saat yönünde rotasyona girer</li>
           </ul>
         </div>
         <div className="border rounded p-4">
@@ -40,7 +40,7 @@ export function VolleyballInfo() {
 
 function SalonVoleybolIllustration() {
   return (
-    <svg viewBox="0 0 200 140" className="w-full h-28 text-slate-400" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 200 140" className="w-full h-28 text-slate-400" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <line x1="10" y1="120" x2="190" y2="120" stroke="currentColor" strokeWidth="2" />
       <line x1="60" y1="30" x2="60" y2="120" stroke="currentColor" strokeWidth="3" />
       <line x1="140" y1="30" x2="140" y2="120" stroke="currentColor" strokeWidth="3" />
@@ -67,7 +67,7 @@ function PlajVoleybolIllustration() {
   });
 
   return (
-    <svg viewBox="0 0 200 140" className="w-full h-28" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 200 140" className="w-full h-28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <circle cx="150" cy="30" r="16" fill="#fbbf24" />
       {sunRays.map((ray) => (
         <line key={ray.key} x1={ray.x1} y1={ray.y1} x2={ray.x2} y2={ray.y2} stroke="#fbbf24" strokeWidth="2" />
