@@ -1,12 +1,18 @@
 import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
+import { TeamBuilder } from '@/components/TeamBuilder';
 
 export default async function WeekDetailPage({ params }: { params: { id: string } }) {
   const week = await prisma.week.findUnique({
     where: { id: params.id },
-    include: { attendees: { include: { player: true } } },
+    include: {
+      attendees: { include: { player: true } },
+      teams: { include: { players: { include: { player: true } } } },
+    },
   });
   if (!week) notFound();
+
+  const attendeePlayers = week.attendees.map((a) => a.player);
 
   return (
     <div>
@@ -19,6 +25,8 @@ export default async function WeekDetailPage({ params }: { params: { id: string 
           </li>
         ))}
       </ul>
+
+      <TeamBuilder weekId={week.id} attendees={attendeePlayers} initialTeams={week.teams} />
     </div>
   );
 }
