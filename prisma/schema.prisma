@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Player {
+  id              String         @id @default(cuid())
+  name            String
+  level           Int
+  isActive        Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  teamPlayers     TeamPlayer[]
+  weekAttendances WeekAttendee[]
+  mvps            WeeklyMvp[]
+}
+
+model Week {
+  id        String         @id @default(cuid())
+  date      DateTime
+  createdAt DateTime       @default(now())
+  attendees WeekAttendee[]
+  teams     Team[]
+  matches   Match[]
+  mvps      WeeklyMvp[]
+}
+
+model WeekAttendee {
+  id       String @id @default(cuid())
+  weekId   String
+  playerId String
+  week     Week   @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([weekId, playerId])
+}
+
+model Team {
+  id          String       @id @default(cuid())
+  weekId      String
+  name        String
+  week        Week         @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  players     TeamPlayer[]
+  homeMatches Match[]      @relation("MatchTeamA")
+  awayMatches Match[]      @relation("MatchTeamB")
+}
+
+model TeamPlayer {
+  id       String @id @default(cuid())
+  teamId   String
+  playerId String
+  team     Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, playerId])
+}
+
+model Match {
+  id        String   @id @default(cuid())
+  weekId    String
+  teamAId   String
+  teamBId   String
+  sets      Json
+  createdAt DateTime @default(now())
+  week      Week     @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  teamA     Team     @relation("MatchTeamA", fields: [teamAId], references: [id], onDelete: Cascade)
+  teamB     Team     @relation("MatchTeamB", fields: [teamBId], references: [id], onDelete: Cascade)
+}
+
+model WeeklyMvp {
+  id       String @id @default(cuid())
+  weekId   String
+  playerId String
+  week     Week   @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([weekId, playerId])
+}
