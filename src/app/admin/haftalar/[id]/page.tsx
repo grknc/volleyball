@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db';
 import { notFound } from 'next/navigation';
 import { TeamBuilder } from '@/components/TeamBuilder';
 import { FixtureManager } from '@/components/FixtureManager';
+import { MvpPicker } from '@/components/MvpPicker';
 
 export default async function WeekDetailPage({ params }: { params: { id: string } }) {
   const week = await prisma.week.findUnique({
@@ -10,6 +11,7 @@ export default async function WeekDetailPage({ params }: { params: { id: string 
       attendees: { include: { player: true } },
       teams: { include: { players: { include: { player: true } } } },
       matches: true,
+      mvps: { include: { player: true } },
     },
   });
   if (!week) notFound();
@@ -39,6 +41,12 @@ export default async function WeekDetailPage({ params }: { params: { id: string 
           teamBId: m.teamBId,
           sets: m.sets as [number, number][],
         }))}
+      />
+
+      <MvpPicker
+        weekId={week.id}
+        attendees={attendeePlayers}
+        initialMvpPlayerIds={week.mvps.map((m) => m.playerId)}
       />
     </div>
   );
