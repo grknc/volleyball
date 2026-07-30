@@ -19,10 +19,16 @@ Reference spec: `docs/superpowers/specs/2026-07-30-oyuncular-istatistikler-desig
 - Tailwind utility classes only, inline in JSX — no CSS Modules, no styled-components, no new global CSS.
 - `Player.notes` must never appear in any public-facing response or type (`/api/players`, `/api/players/:id`, and the pages that call them). It is admin-only.
 - `Player.position` values are restricted to the `PLAYER_POSITIONS` constant — never accept or render an arbitrary string as a position.
+- `PlayerDetail.integrityWarnings` is a server-side diagnostic signal, not public content: it is always logged server-side (`console.warn`) when non-empty, but stripped from the `/api/players/:id` JSON response and hidden from the `/players/:id` page whenever `process.env.NODE_ENV === 'production'`. It may appear in both the API response and the page outside of production, for local debugging only.
+- All public list/scope query parameters (`limit`, `offset`, `minMatches` on `/api/players`; `scope`/`weekId` on `/api/statistics/*`) are validated for type and range server-side and rejected with `400` if malformed — never silently coerced or clamped without telling the caller.
+- The public player list (`/api/players`, `/players`) defaults to active players only (`isActive: true`, not client-overridable) — but an inactive player's historical stats stay fully reachable at `/players/:id` and `/api/players/:id` directly by id, since match/team history must never disappear when a player is deactivated.
 - No `Season` model/field, no persistent cross-week `Team` identity, no cross-week team leaderboard — these were explicitly ruled out in the design spec.
 - "Oynanmış maç" is defined solely by `isCompletedMatch()` (Task 4) — no other file re-implements `sets.length >= 2` after this plan is complete.
+- `src/lib/matchAssignments.ts` only queries and normalizes raw Prisma data into `PlayerMatchAssignment[]` — it must never compute a win/loss, streak, or any derived statistic itself; all of that stays in `src/lib/playerStats.ts`'s pure functions.
+- Both `GET /api/players/:id` and the `/players/[id]` Server Component call the exact same `getPlayerDetails()` function from `src/lib/playerService.ts` — no statistics logic is ever duplicated between the API route and the page.
 - Do not modify `src/lib/matchScoring.ts`'s existing exports' behavior, `src/lib/standings.ts`, `src/lib/teamBalancer.ts`, `src/middleware.ts`, or any existing admin week/team/match/mvp route — this plan only adds new files and additively extends `Player`-related files.
-- Every task ends with: `npx tsc --noEmit`, `npm run lint`, the relevant Vitest run, and `npm run build` all passing (or documented as pre-existing failures per Task 1), followed by one commit for that task.
+- **Per-task verification is `npx tsc --noEmit` + that task's own relevant test(s) only — production build is NOT run after every task.** Full `npm run lint`, full `npm run test`, and `npm run build` run once per checkpoint, at the end of Task 2, Task 6, Task 9, Task 13, Task 17, and Task 19 (matching the six execution groups: 1–2, 3–6, 7–9, 10–13, 14–17, 18–19). Every task still ends with one commit.
+- Prisma-touching files with no dedicated Vitest suite (`matchAssignments.ts`, `playerService.ts`, `statisticsService.ts`, API routes, pages) are verified via `npx tsc --noEmit` plus the manual dev-server checks in their own task, and get their first automated full-suite pass at the next checkpoint task.
 
 ---
 
@@ -193,24 +199,33 @@ Open the generated `migration.sql` and verify all of the following are present:
 
 Do not proceed to Step 4 until this file has been read and confirmed correct.
 
-- [ ] **Step 4: Apply the reviewed migration**
+- [ ] **Step 4: STOP — show the generated SQL to the user and wait for explicit approval**
 
-Run: `npx prisma migrate dev --name add_player_profile_fields_and_indexes`
+Paste the full contents of the generated `migration.sql` into the chat/PR for the user to read. **Do not run `prisma migrate dev` (without `--create-only`), `prisma migrate deploy`, or any other command that applies this migration until the user has explicitly approved it in that conversation.** This is a real, hard-to-reverse database change (`ADD COLUMN` + `CREATE INDEX` against a live Postgres database) — treat the pause as mandatory, not a formality. If the user requests changes to the schema, go back to Step 1, re-run `--create-only` (deleting the previously generated, unapplied migration folder first), and repeat Step 3 and this step.
+
+- [ ] **Step 5: Apply the approved migration**
+
+Only after receiving explicit approval in Step 4, run: `npx prisma migrate dev --name add_player_profile_fields_and_indexes`
 
 (Prisma detects the already-created migration folder from Step 2 and applies it, then regenerates the Prisma Client. If it instead tries to create a second migration, that means Step 1's schema and Step 2's generated migration are out of sync — stop and re-check Step 1.)
 
-- [ ] **Step 5: Confirm the Prisma Client regenerated with the new fields**
+- [ ] **Step 6: Confirm the Prisma Client regenerated with the new fields**
 
 Run: `npx prisma generate`
 Expected: no errors. The generated client types (`node_modules/.prisma/client/index.d.ts`) should now include `position`, `heightCm`, `avatarUrl`, `notes`, `updatedAt` on the `Player` type.
 
-- [ ] **Step 6: Verify build/typecheck are unaffected**
+- [ ] **Step 7: Checkpoint verification (end of execution group 1: Tasks 1–2)**
 
-Run: `npx tsc --noEmit`
-Run: `npm run build`
-Expected: same pass/fail state as the Task 1 baseline (schema-only changes shouldn't break anything since no application code references the new fields yet).
+Run, in order, and confirm all pass (or match the Task 1 baseline exactly):
+```bash
+npx tsc --noEmit
+npm run lint
+npm run test
+npm run build
+```
+Expected: same pass/fail state as the Task 1 baseline for all four (schema-only changes shouldn't break anything since no application code references the new fields yet). This is a full checkpoint run, not just typecheck — it closes out execution group 1 before group 2 (Tasks 3–6) begins.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add prisma/schema.prisma prisma/migrations
@@ -312,9 +327,9 @@ export function isValidAvatarUrl(value: unknown): value is string {
 Run: `npx vitest run src/lib/constants.test.ts`
 Expected: all PASS.
 
-- [ ] **Step 5: Full verification**
+- [ ] **Step 5: Per-task verification**
 
-Run: `npx tsc --noEmit`, `npm run lint`, `npm run test`, `npm run build` — all must pass (or match Task 1 baseline).
+Run: `npx tsc --noEmit` and `npx vitest run src/lib/constants.test.ts` — both must pass. (Full lint/full test suite/build run at the Task 6 checkpoint, not here.)
 
 - [ ] **Step 6: Commit**
 
@@ -338,10 +353,10 @@ git commit -m "feat: add PLAYER_POSITIONS and avatar/position validation helpers
 
 - [ ] **Step 1: Write the failing tests**
 
-Append to `src/lib/matchScoring.test.ts` (read the existing file first to match its exact `describe`/`import` style before appending):
+Append to `src/lib/matchScoring.test.ts` (read the existing file first to match its exact `describe`/`import` style before appending; if it already imports `SetScore` from `./matchScoring`, add `isCompletedMatch` to that same import instead of creating a second import line):
 
 ```ts
-import { isCompletedMatch } from './matchScoring';
+import { isCompletedMatch, type SetScore } from './matchScoring';
 
 describe('isCompletedMatch', () => {
   it('returns true for a valid 2-set sweep', () => {
@@ -365,6 +380,37 @@ describe('isCompletedMatch', () => {
     expect(isCompletedMatch({ sets: [], status: 'COMPLETED' })).toBe(true);
     expect(isCompletedMatch({ sets: [[25, 20], [25, 18]], status: 'CANCELLED' })).toBe(false);
     expect(isCompletedMatch({ sets: [[25, 20], [25, 18]], status: 'SCHEDULED' })).toBe(false);
+  });
+});
+
+describe('isCompletedMatch regression — preserves weekView.ts\'s previous inline `sets.length >= 2` check', () => {
+  const validSweep: SetScore[] = [[25, 20], [25, 18]];
+  const validThreeSet: SetScore[] = [[25, 20], [20, 25], [15, 10]];
+  const noSets: SetScore[] = [];
+  const oneSet: SetScore[] = [[25, 20]];
+
+  it('agrees with the old check for every case weekView.ts actually encounters today', () => {
+    // Before this task, weekView.ts computed: sets.length >= 2 ? computeMatchResult(sets) : null
+    // and filtered playedMatches with sets.length >= 2. isCompletedMatch must return the same
+    // true/false for all of these so getWeekView()'s output is byte-for-byte unchanged.
+    expect(isCompletedMatch({ sets: validSweep })).toBe(true);
+    expect(isCompletedMatch({ sets: validThreeSet })).toBe(true);
+    expect(isCompletedMatch({ sets: noSets })).toBe(false);
+    expect(isCompletedMatch({ sets: oneSet })).toBe(false);
+  });
+
+  it('differs from the old inline check only for corrupted set data that can never reach the database in practice', () => {
+    // The old weekView.ts code was: sets.length >= 2 ? computeMatchResult(sets) : null — with NO
+    // try/catch. If a match somehow had length >= 2 but invalid content (e.g. a tied set),
+    // computeMatchResult would throw *uncaught*, crashing the whole getWeekView() call.
+    // isCompletedMatch catches that internally and returns false instead, so this specific
+    // edge case now degrades gracefully rather than crashing. This is a safe improvement, not a
+    // silent behavior change that matters in practice: the existing PATCH /api/admin/matches/[id]
+    // endpoint already runs match sets through computeMatchResult before persisting, so invalid
+    // set data (like a tie) is rejected at write time and should never exist in the database.
+    const corruptTie: SetScore[] = [[20, 20], [25, 18]];
+    expect(() => isCompletedMatch({ sets: corruptTie })).not.toThrow();
+    expect(isCompletedMatch({ sets: corruptTie })).toBe(false);
   });
 });
 ```
@@ -438,9 +484,9 @@ to:
 
 This is a pure refactor — since `Match.status` doesn't exist yet, `isCompletedMatch({ sets })` behaves identically to the old `sets.length >= 2` check (both delegate to the same `computeMatchResult` validation), so the home page and week detail page render exactly as before.
 
-- [ ] **Step 6: Full verification**
+- [ ] **Step 6: Per-task verification**
 
-Run: `npx tsc --noEmit`, `npm run lint`, `npm run test`, `npm run build` — all must pass. Specifically confirm `src/lib/standings.test.ts` (which exercises `weekView.ts`'s consumers indirectly via `computeStandings`) still passes unchanged, since Step 5 touches shared code.
+Run: `npx tsc --noEmit` and `npx vitest run src/lib/matchScoring.test.ts src/lib/standings.test.ts` — both files must pass (`standings.test.ts` exercises `weekView.ts`'s consumers indirectly via `computeStandings`, so re-running it confirms Step 5's refactor didn't disturb shared code). Full lint/full test suite/build run at the Task 6 checkpoint, not here.
 
 - [ ] **Step 7: Manual regression check**
 
@@ -463,7 +509,7 @@ git commit -m "refactor: centralize match-completion check into isCompletedMatch
 
 **Interfaces:**
 - Consumes: `computeMatchResult(sets: SetScore[]): MatchResult`, `SetScore` (from `src/lib/matchScoring.ts`, Task 4).
-- Produces: `PlayerMatchAssignment`, `PlayerMatchRecord`, `PlayerStatsResult`, `computePlayerStats(assignments: PlayerMatchAssignment[]): PlayerStatsResult`, `countDistinctWeeks(weekIds: string[]): number` — consumed by Task 7's `matchAssignments.ts`/`playerService.ts` and Task 8's `statisticsService.ts`.
+- Produces: `PlayerMatchAssignment`, `PlayerMatchRecord`, `PlayerStatsResult`, `computePlayerStats(assignments: PlayerMatchAssignment[]): PlayerStatsResult`, `countDistinctWeeks(weekIds: string[]): number` — the `PlayerMatchAssignment` type is consumed by Task 7's `matchAssignments.ts`, and `computePlayerStats`/`countDistinctWeeks` are consumed by Task 8's `playerService.ts` and Task 9's `statisticsService.ts`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -733,9 +779,9 @@ export function computePlayerStats(assignments: PlayerMatchAssignment[]): Player
 Run: `npx vitest run src/lib/playerStats.test.ts`
 Expected: all PASS.
 
-- [ ] **Step 5: Full verification**
+- [ ] **Step 5: Per-task verification**
 
-Run: `npx tsc --noEmit`, `npm run lint`, `npm run test`, `npm run build` — all must pass.
+Run: `npx tsc --noEmit` and `npx vitest run src/lib/playerStats.test.ts` — both must pass. (Full lint/full test suite/build run at the Task 6 checkpoint, not here.)
 
 - [ ] **Step 6: Commit**
 
@@ -754,7 +800,7 @@ git commit -m "feat: add computePlayerStats pure calculation with integrity chec
 
 **Interfaces:**
 - Consumes: `computeMatchResult(sets: SetScore[]): MatchResult`, `SetScore` (from `src/lib/matchScoring.ts`).
-- Produces: `MatchRecordInput`, `MatchRecordSummary`, `findBiggestBlowout`, `findClosestMatch`, `findHighestScoringMatch` — all `(matches: MatchRecordInput[]) => MatchRecordSummary | null` — consumed by Task 8's `statisticsService.ts`.
+- Produces: `MatchRecordInput`, `MatchRecordSummary`, `findBiggestBlowout`, `findClosestMatch`, `findHighestScoringMatch` — all `(matches: MatchRecordInput[]) => MatchRecordSummary | null` — consumed by Task 9's `statisticsService.ts`.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -905,9 +951,16 @@ export function findHighestScoringMatch(matches: MatchRecordInput[]): MatchRecor
 Run: `npx vitest run src/lib/matchRecords.test.ts`
 Expected: all PASS.
 
-- [ ] **Step 5: Full verification**
+- [ ] **Step 5: Checkpoint verification (end of execution group 2: Tasks 3–6)**
 
-Run: `npx tsc --noEmit`, `npm run lint`, `npm run test`, `npm run build` — all must pass.
+Run, in order, and confirm all pass:
+```bash
+npx tsc --noEmit
+npm run lint
+npm run test
+npm run build
+```
+This closes out the pure domain layer (constants, `isCompletedMatch`, `playerStats`, `matchRecords`) before any Prisma-touching service code begins in Task 7.
 
 - [ ] **Step 6: Commit**
 
@@ -925,9 +978,10 @@ git commit -m "feat: add pure match-record finders (blowout, closest, highest-sc
 
 **Interfaces:**
 - Consumes: `prisma` (from `src/lib/db.ts`), `isCompletedMatch` (from `src/lib/matchScoring.ts`, Task 4), `PlayerMatchAssignment` (from `src/lib/playerStats.ts`, Task 5).
-- Produces: `getPlayerMatchAssignments(weekIds?: string[]): Promise<Map<string, PlayerMatchAssignment[]>>` — consumed by Task 9's `playerService.ts` and Task 10's `statisticsService.ts`. This is the single place that queries `Match` + team rosters, so both services stay N+1-free and never duplicate this query.
+- Produces: `getPlayerMatchAssignments(weekIds?: string[]): Promise<Map<string, PlayerMatchAssignment[]>>` — consumed by Task 8's `playerService.ts` and Task 9's `statisticsService.ts`. This is the single place that queries `Match` + team rosters, so both services stay N+1-free and never duplicate this query.
+- **Note:** this function only queries and normalizes raw Prisma rows into `PlayerMatchAssignment[]` (deciding which matches are completed via `isCompletedMatch`, and which team each player was on) — it must never compute a win/loss, a streak, or any other derived statistic. All statistical computation stays in `src/lib/playerStats.ts`'s pure functions (Task 5), which this file only feeds with normalized data.
 
-This task queries the real Prisma client, so it has no dedicated Vitest test (matching this project's existing convention — none of `weekView.ts`, `db.ts` have unit tests either; only pure `src/lib/*` functions do). It is verified manually via the dev server once Task 9/10 expose it through a page or API route, and via `npx tsc --noEmit` for type correctness now.
+This task queries the real Prisma client, so it has no dedicated Vitest test (matching this project's existing convention — none of `weekView.ts`, `db.ts` have unit tests either; only pure `src/lib/*` functions do). It is verified manually via the dev server once Task 8/9 expose it through a page or API route, and via `npx tsc --noEmit` for type correctness now.
 
 - [ ] **Step 1: Implement `src/lib/matchAssignments.ts`**
 
@@ -980,9 +1034,9 @@ export async function getPlayerMatchAssignments(
 }
 ```
 
-- [ ] **Step 2: Verification**
+- [ ] **Step 2: Per-task verification**
 
-Run: `npx tsc --noEmit`, `npm run lint`, `npm run test`, `npm run build` — all must pass (this file compiles and type-checks against the Prisma Client generated in Task 2; there's no runtime test yet since nothing calls it until Task 9).
+Run: `npx tsc --noEmit` — must pass (this file compiles and type-checks against the Prisma Client generated in Task 2; it has no dedicated Vitest suite since it's Prisma-touching, and nothing calls it yet until Task 9, so there's no "relevant test" to run here — the existing suite is unaffected and gets its next full run at the Task 9 checkpoint).
 
 - [ ] **Step 3: Commit**
 
@@ -1002,6 +1056,7 @@ git commit -m "feat: add shared getPlayerMatchAssignments query helper"
 - Consumes: `prisma`, `getPlayerMatchAssignments` (Task 7), `computePlayerStats`, `countDistinctWeeks` (Task 5).
 - Produces: `PlayerPublicSummary`, `PlayerListFilters`, `PlayerListResult`, `listPlayers(filters: PlayerListFilters): Promise<PlayerListResult>`, `PlayerDetail`, `getPlayerDetails(playerId: string): Promise<PlayerDetail | null>` — consumed by Task 11 (`/api/players*` routes), Task 15 (`/players` page indirectly via the API), and Task 16 (`/players/[id]` page directly).
 - **Note:** `PlayerPublicSummary`/`PlayerDetail` intentionally omit `Player.notes` — this is the boundary enforced by this plan's constraint that notes never reach the public side.
+- **Note:** `getPlayerDetails` always logs (`console.warn`) when `integrityWarnings` is non-empty, but still returns the field on `PlayerDetail` itself — Task 10's API route and Task 16's page are the layers responsible for stripping/hiding it in production, not this service function.
 
 No dedicated unit test for this file (Prisma-touching, same rationale as Task 7) — verified via `npx tsc --noEmit` now and via the dev server once Task 11/16 expose it.
 
@@ -1162,6 +1217,14 @@ export async function getPlayerDetails(playerId: string): Promise<PlayerDetail |
   const assignments = assignmentsByPlayer.get(playerId) ?? [];
   const stats = computePlayerStats(assignments);
 
+  if (stats.integrityWarnings.length > 0) {
+    // Data-integrity conflicts (e.g. a player rostered on both teams of one match) are a
+    // server-side diagnostic signal, not public content — always log them so an admin can
+    // investigate, but the API route (Task 10) and the page (Task 16) decide separately
+    // whether integrityWarnings is included in what gets sent to the browser.
+    console.warn(`[playerService] Oyuncu ${playerId} için veri bütünlüğü uyarıları:`, stats.integrityWarnings);
+  }
+
   const teamNameById = new Map<string, string>();
   for (const tp of player.teamPlayers) {
     teamNameById.set(tp.team.id, tp.team.name);
@@ -1239,9 +1302,9 @@ export async function getPlayerDetails(playerId: string): Promise<PlayerDetail |
 }
 ```
 
-- [ ] **Step 2: Verification**
+- [ ] **Step 2: Per-task verification**
 
-Run: `npx tsc --noEmit`, `npm run lint`, `npm run test`, `npm run build` — all must pass.
+Run: `npx tsc --noEmit` — must pass. No dedicated Vitest suite (Prisma-touching); the existing suite runs unaffected at the Task 9 checkpoint.
 
 - [ ] **Step 3: Commit**
 
@@ -1259,7 +1322,7 @@ git commit -m "feat: add playerService with listPlayers and getPlayerDetails"
 
 **Interfaces:**
 - Consumes: `prisma`, `isCompletedMatch` (Task 4), `computePlayerStats` (Task 5), `getPlayerMatchAssignments` (Task 7), `findBiggestBlowout`/`findClosestMatch`/`findHighestScoringMatch`/`MatchRecordSummary` (Task 6).
-- Produces: `StatisticsScope`, `parseStatisticsScope(params: URLSearchParams)`, `OverviewStats`, `getOverview(scope)`, `LeaderboardEntry`, `PlayerLeaderboards`, `getPlayerLeaderboards(scope)`, `TeamMatchRecords`, `getMatchRecords(scope)` — consumed by Task 12's three `/api/statistics/*` routes.
+- Produces: `StatisticsScope`, `parseStatisticsScope(params: URLSearchParams)`, `OverviewStats`, `getOverview(scope)`, `LeaderboardEntry`, `PlayerLeaderboards`, `getPlayerLeaderboards(scope)`, `TeamMatchRecords`, `getMatchRecords(scope)` — consumed by Task 11's three `/api/statistics/*` routes.
 
 No dedicated unit test (Prisma-touching) — verified via `npx tsc --noEmit` now and via the dev server once Task 12 exposes it.
 
@@ -1464,9 +1527,16 @@ export async function getMatchRecords(scope: StatisticsScope): Promise<TeamMatch
 }
 ```
 
-- [ ] **Step 2: Verification**
+- [ ] **Step 2: Checkpoint verification (end of execution group 3: Tasks 7–9)**
 
-Run: `npx tsc --noEmit`, `npm run lint`, `npm run test`, `npm run build` — all must pass.
+Run, in order, and confirm all pass:
+```bash
+npx tsc --noEmit
+npm run lint
+npm run test
+npm run build
+```
+This closes out the Prisma service layer (`matchAssignments`, `playerService`, `statisticsService`) before any API routes are added in Task 10.
 
 - [ ] **Step 3: Commit**
 
@@ -1538,11 +1608,31 @@ export async function GET(request: NextRequest) {
   }
 
   const minMatches = params.get('minMatches');
-  if (minMatches !== null) filters.minMatches = Number(minMatches);
+  if (minMatches !== null) {
+    const parsed = Number(minMatches);
+    if (!Number.isInteger(parsed) || parsed < 0) {
+      return NextResponse.json({ error: 'minMatches negatif olmayan bir tam sayı olmalı' }, { status: 400 });
+    }
+    filters.minMatches = parsed;
+  }
+
   const limit = params.get('limit');
-  if (limit !== null) filters.limit = Number(limit);
+  if (limit !== null) {
+    const parsed = Number(limit);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 100) {
+      return NextResponse.json({ error: 'limit 1-100 arasında bir tam sayı olmalı' }, { status: 400 });
+    }
+    filters.limit = parsed;
+  }
+
   const offset = params.get('offset');
-  if (offset !== null) filters.offset = Number(offset);
+  if (offset !== null) {
+    const parsed = Number(offset);
+    if (!Number.isInteger(parsed) || parsed < 0) {
+      return NextResponse.json({ error: 'offset negatif olmayan bir tam sayı olmalı' }, { status: 400 });
+    }
+    filters.offset = parsed;
+  }
 
   const result = await listPlayers(filters);
   return NextResponse.json(result);
@@ -1560,21 +1650,30 @@ export async function GET(_request: Request, { params }: { params: { id: string 
   if (!player) {
     return NextResponse.json({ error: 'Oyuncu bulunamadı' }, { status: 404 });
   }
+
+  // integrityWarnings is a server-side diagnostic signal (already logged inside
+  // getPlayerDetails) — never expose it in the production public API response.
+  if (process.env.NODE_ENV === 'production') {
+    const { integrityWarnings: _integrityWarnings, ...publicPlayer } = player;
+    return NextResponse.json({ player: publicPlayer });
+  }
   return NextResponse.json({ player });
 }
 ```
 
-- [ ] **Step 3: Full verification**
+- [ ] **Step 3: Per-task verification**
 
-Run: `npx tsc --noEmit`, `npm run lint`, `npm run test`, `npm run build` — all must pass.
+Run: `npx tsc --noEmit` — must pass. Neither route has a dedicated Vitest suite (they're thin wrappers over already-tested/typed service functions); Step 4's manual checks are this task's functional verification. Full lint/full test suite/build run at the Task 13 checkpoint.
 
 - [ ] **Step 4: Manual verification**
 
 Start the dev server (`npm run dev`). With at least one player/week/match seeded:
 - `curl http://localhost:3000/api/players` → 200, JSON with `players`/`total`/`limit`/`offset`/`minMatchesForWinRate`, no `notes` field anywhere in the response.
 - `curl http://localhost:3000/api/players?position=Kaptan` → 400 `{ "error": "Geçersiz pozisyon" }` (since `Kaptan` isn't in `PLAYER_POSITIONS`).
+- `curl "http://localhost:3000/api/players?limit=0"`, `?limit=101`, `?offset=-1`, `?minMatches=-1` → each 400 with a descriptive error.
 - `curl http://localhost:3000/api/players/<a real player id>` → 200, `{ "player": { ... } }`.
 - `curl http://localhost:3000/api/players/does-not-exist` → 404.
+- With `NODE_ENV=production npm run build && NODE_ENV=production npm run start` (or by temporarily setting `NODE_ENV=production` for a single request), confirm `/api/players/<id>` for a player with a known data-integrity conflict does **not** include `integrityWarnings` in the JSON body, while the same request against the normal `npm run dev` server does include it.
 
 - [ ] **Step 5: Commit**
 
@@ -1644,15 +1743,16 @@ export async function GET(request: NextRequest) {
 }
 ```
 
-- [ ] **Step 4: Full verification**
+- [ ] **Step 4: Per-task verification**
 
-Run: `npx tsc --noEmit`, `npm run lint`, `npm run test`, `npm run build` — all must pass.
+Run: `npx tsc --noEmit` — must pass. These routes are thin wrappers over already-typed service functions with no dedicated Vitest suite; Step 5's manual checks are this task's functional verification. Full lint/full test suite/build run at the Task 13 checkpoint.
 
 - [ ] **Step 5: Manual verification**
 
 With the dev server running:
 - `curl http://localhost:3000/api/statistics/overview?scope=all` → 200 with the 6 overview fields.
 - `curl http://localhost:3000/api/statistics/overview?scope=week` → 400 (missing `weekId`).
+- `curl http://localhost:3000/api/statistics/overview?scope=bogus` → 400 (`Geçersiz scope değeri`).
 - `curl http://localhost:3000/api/statistics/players?scope=last10` → 200 with all 7 leaderboard arrays and `minMatchesForWinRate`.
 - `curl http://localhost:3000/api/statistics/teams?scope=all` → 200 with `biggestBlowout`/`closestMatch`/`highestScoringMatch` (or `null` values if no completed matches exist yet).
 
@@ -1793,9 +1893,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 }
 ```
 
-- [ ] **Step 4: Full verification**
+- [ ] **Step 4: Per-task verification**
 
-Run: `npx tsc --noEmit`, `npm run lint`, `npm run test`, `npm run build` — all must pass.
+Run: `npx tsc --noEmit` — must pass. No dedicated Vitest suite for these route handlers (the validation helpers they call are already covered by Task 3's `constants.test.ts`); Step 5's manual checks are this task's functional verification. Full lint/full test suite/build run at the Task 13 checkpoint.
 
 - [ ] **Step 5: Manual regression check**
 
@@ -2053,9 +2153,16 @@ export default function PlayersPage() {
 }
 ```
 
-- [ ] **Step 2: Full verification**
+- [ ] **Step 2: Checkpoint verification (end of execution group 4: Tasks 10–13)**
 
-Run: `npx tsc --noEmit`, `npm run lint`, `npm run test`, `npm run build` — all must pass.
+Run, in order, and confirm all pass:
+```bash
+npx tsc --noEmit
+npm run lint
+npm run test
+npm run build
+```
+This closes out the full backend surface (public players/statistics APIs, admin API extensions, admin form) before frontend pages begin in Task 14.
 
 - [ ] **Step 3: Manual verification**
 
@@ -2129,9 +2236,9 @@ export function PlayerAvatar({ name, avatarUrl, sizeClassName = 'w-10 h-10' }: P
 }
 ```
 
-- [ ] **Step 2: Full verification**
+- [ ] **Step 2: Per-task verification**
 
-Run: `npx tsc --noEmit`, `npm run lint`, `npm run test`, `npm run build` — all must pass. If `next/core-web-vitals` lint rules flag `<img>` without the disable comment above, keep the comment; do not switch to `next/image` (see Global Constraints/spec section 12 for why).
+Run: `npx tsc --noEmit` — must pass. No dedicated Vitest suite (no component-test infrastructure exists in this project). Full lint runs at the Task 17 checkpoint — if `next/core-web-vitals` flags the `<img>` element there, keep the disable comment above; do not switch to `next/image` (see Global Constraints/spec section 12 for why).
 
 - [ ] **Step 3: Commit**
 
@@ -2398,13 +2505,17 @@ export default function PlayersPage() {
 }
 ```
 
-- [ ] **Step 2: Full verification**
+- [ ] **Step 2: Per-task verification**
 
-Run: `npx tsc --noEmit`, `npm run lint`, `npm run test`, `npm run build` — all must pass.
+Run: `npx tsc --noEmit` — must pass. Full lint/full test suite/build run at the Task 17 checkpoint.
 
-- [ ] **Step 3: Manual verification**
+- [ ] **Step 3: Manual verification — loading, error, and empty states checked separately**
 
-Open `http://localhost:3000/players` directly. Confirm: loading skeleton appears briefly, then either the table (desktop width) or cards (resize browser below 768px) render, search/position/level/sort controls filter and re-sort correctly, pagination buttons disable correctly at the start/end, and the win-rate helper text appears only when that sort is selected.
+Open `http://localhost:3000/players` directly and confirm each state independently, not just the happy path:
+- **Loading:** on first load (and after changing any filter), the animated skeleton blocks appear briefly before data renders.
+- **Populated:** the table (desktop width) or cards (resize browser below 768px) render with real data; search/position/level/sort controls filter and re-sort correctly; pagination buttons disable correctly at the start/end; the win-rate helper text appears only when that sort is selected.
+- **Empty:** search for a name that matches no player (e.g. `"zzzzz"`) and confirm the "Kriterlere uyan oyuncu bulunamadı." message renders instead of an empty table/blank area.
+- **Error:** temporarily stop the dev server (or block the `/api/players` request via browser devtools) and reload — confirm the red error text renders instead of an infinite skeleton or a crash.
 
 - [ ] **Step 4: Commit**
 
@@ -2422,6 +2533,7 @@ git commit -m "feat: add /players page with search, filters, sorting, and pagina
 
 **Interfaces:**
 - Consumes: `getPlayerDetails` (Task 8, called directly — not via the API route, per the design spec's single-service rule), `PlayerAvatar` (Task 14).
+- **Note:** the `integrityWarnings` banner below is gated on `process.env.NODE_ENV !== 'production'`, matching the same production-hide rule applied to the `/api/players/:id` route in Task 10 — average site visitors never see this diagnostic text.
 
 - [ ] **Step 1: Implement `src/app/players/[id]/page.tsx`**
 
@@ -2452,7 +2564,7 @@ export default async function PlayerDetailPage({ params }: { params: { id: strin
         </div>
       </div>
 
-      {player.integrityWarnings.length > 0 && (
+      {process.env.NODE_ENV !== 'production' && player.integrityWarnings.length > 0 && (
         <p className="text-amber-700 text-sm mb-4">{player.integrityWarnings.join(' ')}</p>
       )}
 
@@ -2561,13 +2673,16 @@ function Stat({ label, value }: { label: string; value: string | number }) {
 }
 ```
 
-- [ ] **Step 2: Full verification**
+- [ ] **Step 2: Per-task verification**
 
-Run: `npx tsc --noEmit`, `npm run lint`, `npm run test`, `npm run build` — all must pass.
+Run: `npx tsc --noEmit` — must pass. Full lint/full test suite/build run at the Task 17 checkpoint.
 
-- [ ] **Step 3: Manual verification**
+- [ ] **Step 3: Manual verification — error and empty states checked separately (no loading state applies: this is a Server Component, same convention as the existing `/hafta/[weekId]` page)**
 
-Open `/players/<a real player id>` directly and confirm all sections render with real data; open `/players/does-not-exist` and confirm Next.js's standard 404 page appears (via `notFound()`).
+- **Populated:** open `/players/<a real player id>` directly and confirm all sections render with real data.
+- **Error:** open `/players/does-not-exist` and confirm Next.js's standard 404 page appears (via `notFound()`).
+- **Empty (per-section):** open the detail page for a player with zero matches and confirm every section shows its own empty message ("Henüz maç yok", "Henüz oynanmış maç yok.", "Henüz takım kaydı yok.", "Henüz seçilmedi.") rather than rendering blank or crashing.
+- **integrityWarnings visibility:** with `npm run dev` (development), a player with a known data-integrity conflict shows the amber warning banner; confirm it does not appear when running against a production build (`npm run build && npm run start`).
 
 - [ ] **Step 4: Commit**
 
@@ -2803,13 +2918,23 @@ function MatchRecordRow({ label, record }: { label: string; record: MatchRecordS
 }
 ```
 
-- [ ] **Step 2: Full verification**
+- [ ] **Step 2: Checkpoint verification (end of execution group 5: Tasks 14–17)**
 
-Run: `npx tsc --noEmit`, `npm run lint`, `npm run test`, `npm run build` — all must pass.
+Run, in order, and confirm all pass:
+```bash
+npx tsc --noEmit
+npm run lint
+npm run test
+npm run build
+```
+This closes out the full frontend page surface before `PublicNav` wiring begins in Task 18. Pay particular attention to lint output for `src/components/PlayerAvatar.tsx` (Task 14's `<img>` element) — this is its first full-lint pass.
 
-- [ ] **Step 3: Manual verification**
+- [ ] **Step 3: Manual verification — loading, error, and empty states checked separately**
 
-Open `/statistics` directly. Confirm: overview cards render, all 7 leaderboards show up to 5 entries with medal emojis for the top 3, "Tümünü Gör" links navigate to `/players?sortBy=...&order=desc`, match records section shows the 3 records (or "henüz veri yok" if no completed matches), and switching between "Tüm Zamanlar"/"Son 10 Hafta" re-fetches and updates all three sections.
+- **Loading:** on first load and when switching scope, the animated skeleton blocks appear briefly before data renders.
+- **Populated:** overview cards render, all 7 leaderboards show up to 5 entries with medal emojis for the top 3, "Tümünü Gör" links navigate to `/players?sortBy=...&order=desc`, match records section shows the 3 records, and switching between "Tüm Zamanlar"/"Son 10 Hafta" re-fetches and updates all three sections.
+- **Empty:** on a database with zero completed matches, confirm every leaderboard shows "Henüz veri yok." and every match record row shows "henüz veri yok." instead of crashing or rendering blank.
+- **Error:** temporarily stop the dev server (or block the three `/api/statistics/*` requests via browser devtools) and reload — confirm the red error text renders instead of an infinite skeleton or a crash.
 
 - [ ] **Step 4: Commit**
 
@@ -3012,9 +3137,9 @@ import { PublicNav } from '@/components/PublicNav';
 ```
 and render it as the first child of `<main>`, immediately before `<h1 className="text-xl font-bold mb-4">İstatistikler</h1>`.
 
-- [ ] **Step 8: Full verification**
+- [ ] **Step 8: Per-task verification**
 
-Run: `npx tsc --noEmit`, `npm run lint`, `npm run test`, `npm run build` — all must pass. Pay particular attention to lint here (unused `Link` import in `page.tsx` from Step 2).
+Run: `npx tsc --noEmit` — must pass. Full lint runs at the Task 19 checkpoint, but manually double-check `src/app/page.tsx` right now: after removing the old header `<div>`, confirm `Link` is genuinely unused elsewhere in that file (it is, per Step 2) so the checkpoint's `npm run lint` doesn't surface an unused-import error later.
 
 - [ ] **Step 9: Manual verification**
 
@@ -3033,7 +3158,7 @@ git commit -m "feat: add responsive PublicNav and wire it into all public pages"
 
 **Files:** none (verification only, plus any small fixes discovered during this pass — each fix gets its own follow-up commit, not folded silently into this task).
 
-- [ ] **Step 1: Full automated verification**
+- [ ] **Step 1: Checkpoint verification (end of execution group 6: Tasks 18–19, and final pass for the whole plan)**
 
 Run, in order, and confirm all pass (or match the Task 1 baseline exactly, with no new failures):
 ```bash
