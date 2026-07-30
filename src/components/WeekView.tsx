@@ -24,54 +24,62 @@ export function WeekView({ week }: { week: WeekViewData }) {
 
       <section className="mb-8">
         <h2 className="text-lg font-semibold mb-2">Puan Durumu</h2>
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b">
-              <th className="py-2">Takım</th>
-              <th className="py-2">O</th>
-              <th className="py-2">G</th>
-              <th className="py-2">M</th>
-              <th className="py-2">Set Av.</th>
-              <th className="py-2">Puan</th>
-            </tr>
-          </thead>
-          <tbody>
-            {week.standings.map((row) => (
-              <tr key={row.teamId} className="border-b">
-                <td className="py-2">
-                  <TeamRoster teamId={row.teamId} week={week} />
-                </td>
-                <td className="py-2">{row.played}</td>
-                <td className="py-2">{row.won}</td>
-                <td className="py-2">{row.lost}</td>
-                <td className="py-2">{row.setDiff}</td>
-                <td className="py-2 font-semibold">{row.points}</td>
+        {week.teams.length === 0 ? (
+          <p className="text-slate-500">Henüz takım oluşturulmadı.</p>
+        ) : (
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b">
+                <th className="py-2">Takım</th>
+                <th className="py-2">O</th>
+                <th className="py-2">G</th>
+                <th className="py-2">M</th>
+                <th className="py-2">Set Av.</th>
+                <th className="py-2">Puan</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {week.standings.map((row) => (
+                <tr key={row.teamId} className="border-b">
+                  <td className="py-2">
+                    <TeamRoster teamId={row.teamId} week={week} />
+                  </td>
+                  <td className="py-2">{row.played}</td>
+                  <td className="py-2">{row.won}</td>
+                  <td className="py-2">{row.lost}</td>
+                  <td className="py-2">{row.setDiff}</td>
+                  <td className="py-2 font-semibold">{row.points}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </section>
 
       <section className="mb-8">
         <h2 className="text-lg font-semibold mb-2">Maç Sonuçları</h2>
-        <ul className="flex flex-col gap-2">
-          {week.matches.map((match) => (
-            <li key={match.id} className="border rounded p-2">
-              <span>
-                <TeamRoster teamId={match.teamAId} week={week} /> -{' '}
-                <TeamRoster teamId={match.teamBId} week={week} />:{' '}
-              </span>
-              {match.result ? (
-                <span className="font-semibold">
-                  {match.result.setsWonA}-{match.result.setsWonB} (
-                  {match.sets.map(([a, b]) => `${a}-${b}`).join(', ')})
+        {week.matches.length === 0 ? (
+          <p className="text-slate-500">Henüz maç planlanmadı.</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {week.matches.map((match) => (
+              <li key={match.id} className="border rounded p-2">
+                <span>
+                  <TeamRoster teamId={match.teamAId} week={week} /> -{' '}
+                  <TeamRoster teamId={match.teamBId} week={week} />:{' '}
                 </span>
-              ) : (
-                <span className="text-slate-500">Henüz oynanmadı</span>
-              )}
-            </li>
-          ))}
-        </ul>
+                {match.result ? (
+                  <span className="font-semibold">
+                    {match.result.setsWonA}-{match.result.setsWonB} (
+                    {match.sets.map(([a, b]) => `${a}-${b}`).join(', ')})
+                  </span>
+                ) : (
+                  <span className="text-slate-500">Henüz oynanmadı</span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section>
