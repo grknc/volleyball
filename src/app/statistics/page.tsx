@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { PublicNav } from '@/components/PublicNav';
 
 interface OverviewStats {
   totalPlayers: number;
@@ -74,6 +75,7 @@ export default function StatisticsPage() {
 
   return (
     <main className="max-w-3xl mx-auto p-6">
+      <PublicNav />
       <h1 className="text-xl font-bold mb-4">İstatistikler</h1>
 
       <div className="flex gap-2 mb-6">

@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getPlayerDetails } from '@/lib/playerService';
 import { PlayerAvatar } from '@/components/PlayerAvatar';
+import { PublicNav } from '@/components/PublicNav';
 
 export default async function PlayerDetailPage({ params }: { params: { id: string } }) {
   const player = await getPlayerDetails(params.id);
@@ -9,6 +10,7 @@ export default async function PlayerDetailPage({ params }: { params: { id: strin
 
   return (
     <main className="max-w-3xl mx-auto p-6">
+      <PublicNav />
       <Link href="/players" className="underline text-sm">
         ← Oyuncular
       </Link>

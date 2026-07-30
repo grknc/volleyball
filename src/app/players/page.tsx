@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { PlayerAvatar } from '@/components/PlayerAvatar';
+import { PublicNav } from '@/components/PublicNav';
 import { PLAYER_POSITIONS } from '@/lib/constants';
 
 interface PlayerListItem {
@@ -78,6 +79,7 @@ export default function PlayersPage() {
 
   return (
     <main className="max-w-3xl mx-auto p-6">
+      <PublicNav />
       <h1 className="text-xl font-bold mb-4">Oyuncular</h1>
 
       <div className="flex flex-wrap gap-2 mb-2">
