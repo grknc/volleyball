@@ -26,11 +26,14 @@ model Player {
 model Week {
   id        String         @id @default(cuid())
   date      DateTime
+  status    String         @default("draft")
   createdAt DateTime       @default(now())
   attendees WeekAttendee[]
   teams     Team[]
   matches   Match[]
   mvps      WeeklyMvp[]
+
+  @@index([status])
 }
 
 model WeekAttendee {
