@@ -12,7 +12,11 @@ export interface WeekViewData {
   matchCount: number;
   completedMatchCount: number;
   setCount: number;
-  teams: { id: string; name: string; players: { id: string; name: string; level: number }[] }[];
+  teams: {
+    id: string;
+    name: string;
+    players: { id: string; name: string; level: number; avatarUrl: string | null; position: string | null }[];
+  }[];
   matches: {
     id: string;
     teamAId: string;
@@ -21,7 +25,23 @@ export interface WeekViewData {
     result: MatchResult | null;
   }[];
   standings: StandingsRow[];
-  mvps: { id: string; name: string }[];
+  mvps: { id: string; name: string; avatarUrl: string | null; position: string | null }[];
+}
+
+export interface NextWeekSummary {
+  id: string;
+  date: Date;
+  status: WeekStatus;
+}
+
+export async function getNextWeekSummary(afterDate: Date): Promise<NextWeekSummary | null> {
+  const week = await prisma.week.findFirst({
+    where: { date: { gt: afterDate }, status: { notIn: ['draft', 'archived'] } },
+    orderBy: { date: 'asc' },
+    select: { id: true, date: true, status: true },
+  });
+  if (!week) return null;
+  return { id: week.id, date: week.date, status: week.status as WeekStatus };
 }
 
 export async function getWeekView(weekId: string): Promise<WeekViewData | null> {
@@ -60,10 +80,21 @@ export async function getWeekView(weekId: string): Promise<WeekViewData | null> 
     teams: week.teams.map((t) => ({
       id: t.id,
       name: t.name,
-      players: t.players.map((p) => ({ id: p.player.id, name: p.player.name, level: p.player.level })),
+      players: t.players.map((p) => ({
+        id: p.player.id,
+        name: p.player.name,
+        level: p.player.level,
+        avatarUrl: p.player.avatarUrl,
+        position: p.player.position,
+      })),
     })),
     matches,
     standings,
-    mvps: week.mvps.map((m) => ({ id: m.player.id, name: m.player.name })),
+    mvps: week.mvps.map((m) => ({
+      id: m.player.id,
+      name: m.player.name,
+      avatarUrl: m.player.avatarUrl,
+      position: m.player.position,
+    })),
   };
 }
