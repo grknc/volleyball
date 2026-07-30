@@ -11,8 +11,13 @@ model Player {
   id              String         @id @default(cuid())
   name            String
   level           Int
+  position        String?
+  heightCm        Int?
+  avatarUrl       String?
+  notes           String?
   isActive        Boolean        @default(true)
   createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
   teamPlayers     TeamPlayer[]
   weekAttendances WeekAttendee[]
   mvps            WeeklyMvp[]
@@ -36,6 +41,7 @@ model WeekAttendee {
   player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@unique([weekId, playerId])
+  @@index([playerId])
 }
 
 model Team {
@@ -56,6 +62,7 @@ model TeamPlayer {
   player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@unique([teamId, playerId])
+  @@index([playerId])
 }
 
 model Match {
@@ -68,6 +75,10 @@ model Match {
   week      Week     @relation(fields: [weekId], references: [id], onDelete: Cascade)
   teamA     Team     @relation("MatchTeamA", fields: [teamAId], references: [id], onDelete: Cascade)
   teamB     Team     @relation("MatchTeamB", fields: [teamBId], references: [id], onDelete: Cascade)
+
+  @@index([weekId])
+  @@index([teamAId])
+  @@index([teamBId])
 }
 
 model WeeklyMvp {
@@ -78,4 +89,5 @@ model WeeklyMvp {
   player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@unique([weekId, playerId])
+  @@index([playerId])
 }
