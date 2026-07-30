@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifySessionToken, SESSION_COOKIE } from '@/lib/auth';
+import { verifySessionToken, SESSION_COOKIE } from '@/lib/session';
 
 export async function middleware(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE)?.value;
