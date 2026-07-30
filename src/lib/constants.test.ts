@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { isValidAvatarUrl, isValidPlayerPosition, PLAYER_POSITIONS } from './constants';
+import {
+  isValidAvatarUrl,
+  isValidPlayerPosition,
+  isValidWeekStatus,
+  PLAYER_POSITIONS,
+  WEEK_STATUSES,
+} from './constants';
 
 describe('isValidPlayerPosition', () => {
   it('accepts every value in PLAYER_POSITIONS', () => {
@@ -41,5 +47,23 @@ describe('isValidAvatarUrl', () => {
     expect(isValidAvatarUrl('')).toBe(false);
     expect(isValidAvatarUrl(null)).toBe(false);
     expect(isValidAvatarUrl(undefined)).toBe(false);
+  });
+});
+
+describe('isValidWeekStatus', () => {
+  it('accepts every value in WEEK_STATUSES', () => {
+    for (const status of WEEK_STATUSES) {
+      expect(isValidWeekStatus(status)).toBe(true);
+    }
+  });
+
+  it('rejects a value not in the list', () => {
+    expect(isValidWeekStatus('upcoming')).toBe(false);
+  });
+
+  it('rejects non-string values', () => {
+    expect(isValidWeekStatus(123)).toBe(false);
+    expect(isValidWeekStatus(null)).toBe(false);
+    expect(isValidWeekStatus(undefined)).toBe(false);
   });
 });

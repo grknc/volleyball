@@ -15,3 +15,19 @@ export function isValidAvatarUrl(value: unknown): value is string {
     return false;
   }
 }
+
+export const WEEK_STATUSES = ['draft', 'published', 'completed', 'cancelled', 'archived'] as const;
+
+export type WeekStatus = (typeof WEEK_STATUSES)[number];
+
+export function isValidWeekStatus(value: unknown): value is WeekStatus {
+  return typeof value === 'string' && (WEEK_STATUSES as readonly string[]).includes(value);
+}
+
+export const WEEK_STATUS_LABELS: Record<WeekStatus, string> = {
+  draft: 'Taslak',
+  published: 'Yayında',
+  completed: 'Tamamlandı',
+  cancelled: 'İptal Edildi',
+  archived: 'Arşivlendi',
+};
