@@ -1,8 +1,8 @@
 export function VolleyballInfo() {
   return (
-    <section className="mt-6 pt-4 border-t border-slate-200">
-      <h2 className="text-base font-semibold mb-2">Voleybol Hakkında</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+    <details className="mt-6 pt-4 border-t border-slate-200">
+      <summary className="text-base font-semibold mb-2 cursor-pointer select-none">Voleybol Hakkında</summary>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
         <div className="border rounded p-3">
           <SalonVoleybolIllustration />
           <h3 className="text-sm font-semibold mt-1.5 mb-1">Salon Voleybolu</h3>
@@ -34,7 +34,7 @@ export function VolleyballInfo() {
           </ul>
         </div>
       </div>
-    </section>
+    </details>
   );
 }
 
