@@ -1,10 +1,17 @@
 import { prisma } from '@/lib/db';
 import { computeMatchResult, isCompletedMatch, type MatchResult, type SetScore } from '@/lib/matchScoring';
 import { computeStandings, type StandingsRow } from '@/lib/standings';
+import type { WeekStatus } from '@/lib/constants';
 
 export interface WeekViewData {
   id: string;
   date: Date;
+  status: WeekStatus;
+  attendeeCount: number;
+  teamCount: number;
+  matchCount: number;
+  completedMatchCount: number;
+  setCount: number;
   teams: { id: string; name: string; players: { id: string; name: string; level: number }[] }[];
   matches: {
     id: string;
@@ -24,6 +31,7 @@ export async function getWeekView(weekId: string): Promise<WeekViewData | null> 
       teams: { include: { players: { include: { player: true } } } },
       matches: true,
       mvps: { include: { player: true } },
+      _count: { select: { attendees: true } },
     },
   });
   if (!week) return null;
@@ -43,6 +51,12 @@ export async function getWeekView(weekId: string): Promise<WeekViewData | null> 
   return {
     id: week.id,
     date: week.date,
+    status: week.status as WeekStatus,
+    attendeeCount: week._count.attendees,
+    teamCount: week.teams.length,
+    matchCount: matches.length,
+    completedMatchCount: playedMatches.length,
+    setCount: playedMatches.reduce((sum, m) => sum + m.sets.length, 0),
     teams: week.teams.map((t) => ({
       id: t.id,
       name: t.name,
