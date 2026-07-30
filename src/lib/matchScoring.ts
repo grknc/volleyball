@@ -36,3 +36,21 @@ export function computeMatchResult(sets: SetScore[]): MatchResult {
     pointsB: winner === 'B' ? winnerPoints : 0,
   };
 }
+
+export interface MatchLike {
+  sets: SetScore[];
+  status?: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED'; // Match.status does not exist in the DB yet; when it's added, wire it through here and every caller of isCompletedMatch benefits automatically.
+}
+
+export function isCompletedMatch(match: MatchLike): boolean {
+  if (match.status) {
+    return match.status === 'COMPLETED';
+  }
+  if (match.sets.length < 2) return false;
+  try {
+    computeMatchResult(match.sets);
+    return true;
+  } catch {
+    return false;
+  }
+}

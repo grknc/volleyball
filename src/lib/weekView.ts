@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db';
-import { computeMatchResult, type MatchResult, type SetScore } from '@/lib/matchScoring';
+import { computeMatchResult, isCompletedMatch, type MatchResult, type SetScore } from '@/lib/matchScoring';
 import { computeStandings, type StandingsRow } from '@/lib/standings';
 
 export interface WeekViewData {
@@ -30,11 +30,11 @@ export async function getWeekView(weekId: string): Promise<WeekViewData | null> 
 
   const matches = week.matches.map((m) => {
     const sets = m.sets as SetScore[];
-    const result = sets.length >= 2 ? computeMatchResult(sets) : null;
+    const result = isCompletedMatch({ sets }) ? computeMatchResult(sets) : null;
     return { id: m.id, teamAId: m.teamAId, teamBId: m.teamBId, sets, result };
   });
 
-  const playedMatches = matches.filter((m) => m.sets.length >= 2);
+  const playedMatches = matches.filter((m) => isCompletedMatch({ sets: m.sets }));
   const standings = computeStandings({
     teams: week.teams.map((t) => ({ id: t.id, name: t.name })),
     matches: playedMatches.map((m) => ({ teamAId: m.teamAId, teamBId: m.teamBId, sets: m.sets })),
