@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import { TeamBuilder } from '@/components/TeamBuilder';
 import { FixtureManager } from '@/components/FixtureManager';
 import { MvpPicker } from '@/components/MvpPicker';
+import { WeekStatusControl } from '@/components/WeekStatusControl';
+import type { WeekStatus } from '@/lib/constants';
 
 export default async function WeekDetailPage({ params }: { params: { id: string } }) {
   const week = await prisma.week.findUnique({
@@ -21,6 +23,7 @@ export default async function WeekDetailPage({ params }: { params: { id: string 
   return (
     <div>
       <h1 className="text-xl font-bold mb-4">{new Date(week.date).toLocaleDateString('tr-TR')} Haftası</h1>
+      <WeekStatusControl weekId={week.id} initialStatus={week.status as WeekStatus} />
       <h2 className="font-semibold mb-2">Katılımcılar ({week.attendees.length})</h2>
       <ul className="list-disc list-inside">
         {week.attendees.map((a) => (
