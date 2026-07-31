@@ -10,6 +10,7 @@ interface ConfirmDialogProps {
   danger?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  children?: React.ReactNode;
 }
 
 export function ConfirmDialog({
@@ -22,6 +23,7 @@ export function ConfirmDialog({
   danger = false,
   onConfirm,
   onCancel,
+  children,
 }: ConfirmDialogProps) {
   if (!open) return null;
 
@@ -45,6 +47,7 @@ export function ConfirmDialog({
           </ul>
         )}
         {warning && <p className="text-sm text-red-600 mb-4">{warning}</p>}
+        {children}
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onCancel} className="px-3 py-1 rounded border text-sm">
             {cancelLabel}
