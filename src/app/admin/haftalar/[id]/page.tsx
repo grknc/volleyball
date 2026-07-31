@@ -4,6 +4,7 @@ import { TeamBuilder } from '@/components/TeamBuilder';
 import { FixtureManager } from '@/components/FixtureManager';
 import { MvpPicker } from '@/components/MvpPicker';
 import { WeekStatusControl } from '@/components/WeekStatusControl';
+import { WeekResetControl } from '@/components/WeekResetControl';
 import type { WeekStatus } from '@/lib/constants';
 
 export default async function WeekDetailPage({ params }: { params: { id: string } }) {
@@ -19,11 +20,25 @@ export default async function WeekDetailPage({ params }: { params: { id: string 
   if (!week) notFound();
 
   const attendeePlayers = week.attendees.map((a) => a.player);
+  const setCount = week.matches.reduce(
+    (sum, m) => sum + (m.sets as [number, number][]).length,
+    0
+  );
 
   return (
     <div>
       <h1 className="text-xl font-bold mb-4">{new Date(week.date).toLocaleDateString('tr-TR')} Haftası</h1>
       <WeekStatusControl weekId={week.id} initialStatus={week.status as WeekStatus} />
+      <WeekResetControl
+        weekId={week.id}
+        weekDateLabel={new Date(week.date).toLocaleDateString('tr-TR')}
+        currentStatus={week.status as WeekStatus}
+        teamCount={week.teams.length}
+        matchCount={week.matches.length}
+        setCount={setCount}
+        mvpCount={week.mvps.length}
+        attendeeCount={week.attendees.length}
+      />
       <h2 className="font-semibold mb-2">Katılımcılar ({week.attendees.length})</h2>
       <ul className="list-disc list-inside">
         {week.attendees.map((a) => (
