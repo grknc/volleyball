@@ -5,6 +5,8 @@ import { WeekView } from '@/components/WeekView';
 import { WeekSummary } from '@/components/WeekSummary';
 import { PublicNav } from '@/components/PublicNav';
 
+export const dynamic = 'force-dynamic';
+
 export default async function WeekPage({ params }: { params: { weekId: string } }) {
   const week = await getWeekView(params.weekId);
   if (!week || week.status === 'draft') notFound();

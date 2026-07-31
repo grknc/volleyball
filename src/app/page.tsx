@@ -5,6 +5,8 @@ import { WeekSummary, WeekStatusBadge } from '@/components/WeekSummary';
 import { VolleyballInfo } from '@/components/VolleyballInfo';
 import { PublicNav } from '@/components/PublicNav';
 
+export const dynamic = 'force-dynamic';
+
 export default async function HomePage() {
   const latestWeek = await prisma.week.findFirst({
     where: { status: { notIn: ['draft', 'archived'] } },

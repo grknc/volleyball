@@ -4,6 +4,8 @@ import { PublicNav } from '@/components/PublicNav';
 import { WeekStatusBadge } from '@/components/WeekSummary';
 import type { WeekStatus } from '@/lib/constants';
 
+export const dynamic = 'force-dynamic';
+
 export default async function ArchivePage() {
   const weeks = await prisma.week.findMany({
     where: { status: { not: 'draft' } },
