@@ -6,23 +6,34 @@ import { resetWeekData } from './weekResetService';
 
 const RUN = process.env.RUN_DB_TESTS === '1';
 const TEST_DB = process.env.TEST_DATABASE_URL;
-const canRun = RUN && !!TEST_DB && TEST_DB !== process.env.DATABASE_URL;
+// APP_DB is populated from .env/.env.local by vitest.config.ts, but only when
+// RUN_DB_TESTS === '1' (i.e. only during `npm run test:db`). Requiring both
+// TEST_DB and APP_DB to be non-empty, in addition to differing, closes the
+// gap where APP_DB is undefined (e.g. under plain `npm test`, or if `.env` is
+// missing DATABASE_URL) and `TEST_DB !== undefined` would otherwise trivially
+// be true for any non-empty TEST_DATABASE_URL.
+const APP_DB = process.env.DATABASE_URL;
+const canRun = RUN && !!TEST_DB && !!APP_DB && TEST_DB !== APP_DB;
 
 describe.skipIf(!canRun)('resetWeekData (integration)', () => {
   // Fall back to a placeholder URL when TEST_DB is unset so the PrismaClient
   // constructor never throws during test collection (which runs even for
   // skipped suites); the client is never used unless canRun is true.
-  const prismaTest = new PrismaClient({ datasources: { db: { url: TEST_DB ?? 'postgresql://skip:skip@localhost:5432/skip' } } });
+  const prismaTest = new PrismaClient({ datasources: { db: { url: TEST_DB || 'postgresql://skip:skip@localhost:5432/skip' } } });
   const prefix = `test-week-reset-${randomUUID()}`;
   const createdWeekIds: string[] = [];
   const createdPlayerIds: string[] = [];
 
   afterEach(async () => {
     for (const weekId of createdWeekIds.splice(0)) {
-      await prismaTest.week.delete({ where: { id: weekId } }).catch(() => {});
+      await prismaTest.week
+        .delete({ where: { id: weekId } })
+        .catch((err) => console.error('cleanup failed for week', weekId, err));
     }
     for (const playerId of createdPlayerIds.splice(0)) {
-      await prismaTest.player.delete({ where: { id: playerId } }).catch(() => {});
+      await prismaTest.player
+        .delete({ where: { id: playerId } })
+        .catch((err) => console.error('cleanup failed for player', playerId, err));
     }
   });
 
@@ -35,8 +46,9 @@ describe.skipIf(!canRun)('resetWeekData (integration)', () => {
     createdWeekIds.push(week.id);
 
     const player1 = await prismaTest.player.create({ data: { name: `${prefix}-player-1`, level: 3 } });
+    createdPlayerIds.push(player1.id);
     const player2 = await prismaTest.player.create({ data: { name: `${prefix}-player-2`, level: 3 } });
-    createdPlayerIds.push(player1.id, player2.id);
+    createdPlayerIds.push(player2.id);
 
     await prismaTest.weekAttendee.createMany({
       data: [
@@ -99,13 +111,19 @@ describe.skipIf(!canRun)('resetWeekData (integration)', () => {
 
   it('leaves Player rows completely untouched', async () => {
     const { week, player1, player2 } = await createFixtureWeek('completed');
-    const before = await prismaTest.player.findMany({ where: { id: { in: [player1.id, player2.id] } } });
+    const before = await prismaTest.player.findMany({
+      where: { id: { in: [player1.id, player2.id] } },
+      orderBy: { id: 'asc' },
+    });
 
     await prismaTest.$transaction((tx) =>
       resetWeekData(tx, week.id, { removeAttendees: true, resetStatus: true })
     );
 
-    const after = await prismaTest.player.findMany({ where: { id: { in: [player1.id, player2.id] } } });
+    const after = await prismaTest.player.findMany({
+      where: { id: { in: [player1.id, player2.id] } },
+      orderBy: { id: 'asc' },
+    });
     expect(after).toEqual(before);
   });
 
