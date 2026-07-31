@@ -8,6 +8,7 @@ interface ConfirmDialogProps {
   confirmLabel?: string;
   cancelLabel?: string;
   danger?: boolean;
+  disabled?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
   children?: React.ReactNode;
@@ -21,6 +22,7 @@ export function ConfirmDialog({
   confirmLabel = 'Onayla',
   cancelLabel = 'Vazgeç',
   danger = false,
+  disabled = false,
   onConfirm,
   onCancel,
   children,
@@ -55,7 +57,8 @@ export function ConfirmDialog({
           <button
             type="button"
             onClick={onConfirm}
-            className={`px-3 py-1 rounded text-sm text-white ${danger ? 'bg-red-600' : 'bg-slate-900'}`}
+            disabled={disabled}
+            className={`px-3 py-1 rounded text-sm text-white disabled:opacity-50 ${danger ? 'bg-red-600' : 'bg-slate-900'}`}
           >
             {confirmLabel}
           </button>

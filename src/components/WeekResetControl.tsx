@@ -86,6 +86,7 @@ export function WeekResetControl({
         confirmLabel={busy ? 'Sıfırlanıyor…' : 'Verileri Sıfırla'}
         cancelLabel="Vazgeç"
         danger
+        disabled={busy}
         onConfirm={handleReset}
         onCancel={() => setConfirmReset(false)}
       >

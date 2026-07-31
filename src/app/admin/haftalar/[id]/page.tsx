@@ -25,10 +25,14 @@ export default async function WeekDetailPage({ params }: { params: { id: string 
     0
   );
 
+  const resetKey = `${week.status}-${week.teams.length}-${week.matches.length}-${week.mvps.length}-${week.attendees.length}`;
+
   return (
     <div>
       <h1 className="text-xl font-bold mb-4">{new Date(week.date).toLocaleDateString('tr-TR')} Haftası</h1>
-      <WeekStatusControl weekId={week.id} initialStatus={week.status as WeekStatus} />
+      <div key={`${resetKey}-status`}>
+        <WeekStatusControl weekId={week.id} initialStatus={week.status as WeekStatus} />
+      </div>
       <WeekResetControl
         weekId={week.id}
         weekDateLabel={new Date(week.date).toLocaleDateString('tr-TR')}
@@ -48,24 +52,26 @@ export default async function WeekDetailPage({ params }: { params: { id: string 
         ))}
       </ul>
 
-      <TeamBuilder weekId={week.id} attendees={attendeePlayers} initialTeams={week.teams} />
+      <div key={`${resetKey}-rest`}>
+        <TeamBuilder weekId={week.id} attendees={attendeePlayers} initialTeams={week.teams} />
 
-      <FixtureManager
-        weekId={week.id}
-        teams={week.teams.map((t) => ({ id: t.id, name: t.name }))}
-        initialMatches={week.matches.map((m) => ({
-          id: m.id,
-          teamAId: m.teamAId,
-          teamBId: m.teamBId,
-          sets: m.sets as [number, number][],
-        }))}
-      />
+        <FixtureManager
+          weekId={week.id}
+          teams={week.teams.map((t) => ({ id: t.id, name: t.name }))}
+          initialMatches={week.matches.map((m) => ({
+            id: m.id,
+            teamAId: m.teamAId,
+            teamBId: m.teamBId,
+            sets: m.sets as [number, number][],
+          }))}
+        />
 
-      <MvpPicker
-        weekId={week.id}
-        attendees={attendeePlayers}
-        initialMvpPlayerIds={week.mvps.map((m) => m.playerId)}
-      />
+        <MvpPicker
+          weekId={week.id}
+          attendees={attendeePlayers}
+          initialMvpPlayerIds={week.mvps.map((m) => m.playerId)}
+        />
+      </div>
     </div>
   );
 }
