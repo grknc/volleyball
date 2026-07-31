@@ -73,6 +73,14 @@ Request body:
 İki alan da opsiyonel, ikisi de olmadığında `removeAttendees=false`,
 `resetStatus=false` varsayılır.
 
+**Validasyon**: Her iki alan da gönderildiğinde **kesinlikle `boolean`** olmalı.
+`"true"` (string), `1` (number), `{}` (object) gibi değerler sessizce
+`false`'a düşürülmez — `typeof body.removeAttendees !== 'boolean'` (alan
+gönderilmişse) veya aynısı `resetStatus` için doğruysa `400
+{ "error": "removeAttendees ve resetStatus boolean olmalı" }` döner. Bu
+kontrol `route.ts` içinde `tx.week.findUnique`'dan **önce**, transaction
+başlamadan yapılır (girdi doğrulaması, veri doğrulaması değil).
+
 Response (200):
 ```json
 {
@@ -101,8 +109,11 @@ Hata durumları:
 
 ## Transaction ve doğrulama
 
-Transaction dışında ön kontrol **yapılmaz** (gereksiz round-trip). Tüm
-doğrulama, sayım ve silme işlemi tek `prisma.$transaction` içinde gerçekleşir:
+Girdi şekli doğrulaması (`removeAttendees`/`resetStatus` tipi — yukarıya bkz.)
+transaction'dan önce, DB'ye hiç gitmeden yapılır; bu bir request-validation
+adımıdır, "hafta var mı" kontrolü değildir. Haftanın var olup olmadığına dair
+**hiçbir ön kontrol yapılmaz** (gereksiz round-trip) — bu doğrulama, tüm
+sayım ve silme işlemiyle birlikte tek `prisma.$transaction` içinde gerçekleşir:
 
 ```ts
 await prisma.$transaction(async (tx) => {
@@ -153,6 +164,15 @@ await prisma.$transaction(async (tx) => {
 - UI'dan gelen `teamCount`/`matchCount`/`setCount`/`mvpCount`/`attendeeCount`
   değerleri **sadece confirmation dialog'da bilgilendirme amaçlıdır**; backend
   bunları hiç okumaz, kendi sayımını yapar.
+- **Status güncellemesi transaction'ın son adımıdır** (silme işlemlerinden
+  sonra, `return`'den hemen önce). Bunun nedeni: herhangi bir `deleteMany`
+  adımı hata fırlatırsa Prisma transaction'ı tamamen rollback eder ve status
+  güncellemesi hiç DB'ye yazılmaz — kısmen silinmiş ama durumu `draft`'a
+  değişmiş bir hafta oluşamaz. Status güncellemesi silmelerden önce
+  yapılsaydı da aynı atomiklik garantisi geçerli olurdu (transaction ya
+  bütünüyle uygulanır ya da hiç uygulanmaz), ama son adımda tutmak okuma
+  sırasını "önce temizle, sonra durumu güncelle" mantığıyla hizalıyor ve
+  ileride bir adım daha eklenirse (ör. bildirim) sondan eklemeyi kolaylaştırıyor.
 
 ## Silme sırası
 
@@ -181,7 +201,20 @@ await prisma.$transaction(async (tx) => {
   hesaplayan **saf fonksiyon** `planWeekReset(options)`. DB'siz unit test
   edilebilir, `weekDeletion.ts`'deki `canDeleteWeek` deseniyle birebir aynı.
 - **Yeni** `src/lib/weekResetPlan.test.ts` — `planWeekReset` için vitest.
+- **Yeni** `src/lib/weekResetService.orchestration.test.ts` — DB'siz, mock
+  `tx` ile çağrı sırası/argümanlarını doğrulayan unit test (bkz. Testler bölümü).
 - **Yeni** `src/lib/weekResetService.integration.test.ts` — bkz. Testler bölümü.
+  Ana uygulamanın `src/lib/db.ts`'teki singleton Prisma client'ını **kullanmaz**;
+  dosya içinde `TEST_DATABASE_URL` ile açıkça oluşturulmuş kendi
+  `new PrismaClient({ datasources: { db: { url: process.env.TEST_DATABASE_URL } } })`
+  örneğini kullanır ve dosya sonunda kapatır.
+- **Değişecek** `package.json` — `"test:db": "cross-env RUN_DB_TESTS=1 vitest run src/lib/weekResetService.integration.test.ts"`
+  script'i eklenir (veya Windows uyumluluğu için `cross-env` yoksa PowerShell/
+  bash için ayrı komut örneği README'ye eklenir — plan aşamasında karara
+  bağlanacak). Mevcut `"test": "vitest run"` script'i **değiştirilmez**,
+  yani normal `npm test` entegrasyon testini hiçbir zaman çalıştırmaz
+  (dosya kendi içinde de `RUN_DB_TESTS`/`TEST_DATABASE_URL` kontrolüyle
+  korunur, bkz. Testler bölümü — bu iki bağımsız koruma katmanıdır).
 - **Değişecek** `src/components/ConfirmDialog.tsx` — `children?: React.ReactNode`
   prop'u eklenir (buton satırından önce render edilir). Mevcut 2 kullanım yeri
   (`WeekRowActions.tsx`) etkilenmez, prop opsiyonel.
@@ -230,11 +263,24 @@ await prisma.$transaction(async (tx) => {
 
 - `removeAttendees` varsayılan `false`.
 - `resetStatus` varsayılan `true`.
-- Başarı sonrası: local `success` state ("Hafta verileri sıfırlandı.") +
-  `router.refresh()` — server component yeniden fetch eder, sayılar ve durum
-  rozeti güncel görünür.
 - Buton: `src/app/admin/haftalar/[id]/page.tsx` üzerinde, `WeekStatusControl`'ün
   yanında (kullanıcı zaten o haftanın verilerine bakarken doğru bağlamda).
+
+**Başarılı işlem sonrası `WeekResetControl` davranışı** (sırayla):
+1. `setConfirmReset(false)` — dialog kapanır.
+2. `setRemoveAttendees(false)`, `setResetStatus(true)` — checkbox state'leri
+   varsayılan değerlerine döner (bir sonraki açılışta temiz başlar).
+3. `setSuccess('Hafta verileri sıfırlandı.')` — local `success` state,
+   `error` state'iyle aynı desende (kırmızı yerine yeşil/nötr metin) inline
+   gösterilir.
+4. `router.refresh()` — server component yeniden fetch eder, sayılar ve
+   durum rozeti güncel görünür.
+
+Hata durumunda (`res.ok` false): dialog **açık kalmaz**, mevcut
+`WeekRowActions` deseniyle aynı şekilde kapanır (`setConfirmReset(false)`
+zaten `finally` benzeri bir akışta çağrılır), `error` state'i mesajı
+gösterir, checkbox state'leri **sıfırlanmaz** (kullanıcı tekrar denemek
+isteyebilir, seçimini kaybetmemeli).
 
 ## Testler
 
@@ -252,18 +298,65 @@ yüzden iki katman:
 
 **`weekResetService.integration.test.ts` (gerçek test DB'sine karşı, yeni desen —
 bu repo'da ilk DB-entegrasyon testi, spec'te bilinçli bir sapma olarak işaretlendi):**
+
+*Güvenlik ön koşulları (dosyanın en üstünde, ilk test'ten önce çalışır):*
+```ts
+const RUN = process.env.RUN_DB_TESTS === '1';
+const TEST_DB = process.env.TEST_DATABASE_URL;
+
+if (!RUN || !TEST_DB || TEST_DB === process.env.DATABASE_URL) {
+  describe.skip('weekResetService (integration)', () => {
+    it('skipped: RUN_DB_TESTS=1 ve ayrı bir TEST_DATABASE_URL gerekli', () => {});
+  });
+} else {
+  describe('weekResetService (integration)', () => {
+    const prismaTest = new PrismaClient({ datasources: { db: { url: TEST_DB } } });
+    // ...testler burada...
+  });
+}
+```
+Üç koşuldan biri sağlanmazsa (bayrak kapalı, `TEST_DATABASE_URL` tanımsız,
+veya `TEST_DATABASE_URL === DATABASE_URL`) test paketi **skip edilir** —
+sessizce geçmez, `describe.skip` altında açık bir "neden skip edildi"
+mesajı basan tek bir placeholder test bırakır. `TEST_DATABASE_URL ===
+DATABASE_URL` eşitliği özellikle kritik: yanlışlıkla prod/dev DB'sinin
+test DB'si olarak ayarlanmasını engeller.
+
+*Fixture izolasyonu:* Her test kendi haftasını/oyuncularını
+`test-week-reset-<randomUUID()>` (Week/Team/Player isim ve `notes` alanı
+prefix'i) ile oluşturur — mevcut seed veya geliştirme verisiyle asla
+çakışmaz, mevcut verilerden okuma da yapmaz. `afterEach` içinde **yalnızca
+o testin oluşturduğu fixture id'leri** (test başında toplanan) silinir;
+tabloya göre toplu `deleteMany` (`WHERE ...`) kullanılmaz ki başka bir
+paralel testin fixture'ına dokunulmasın.
+
+*Senaryolar:*
 - Takım ve maç olan hafta sıfırlanır → `deleted` sayıları doğru
 - `archived` durumdaki hafta sıfırlanır, `resetStatus=true` ile status `draft`
   olur, hafta kaydı korunur
-- Player kayıtları hiç değişmez (reset öncesi/sonrası `Player` tablosu birebir aynı)
-- Diğer haftalara ait `Team`/`TeamPlayer`/`Match`/`WeeklyMvp`/`WeekAttendee`
-  kayıtları reset sonrası tamamen değişmeden kalır (ayrı bir kontrol haftası
-  fixture'ı ile)
+- Player kayıtları hiç değişmez (reset öncesi/sonrası fixture `Player`
+  satırları birebir aynı)
+- Diğer (fixture) haftalara ait `Team`/`TeamPlayer`/`Match`/`WeeklyMvp`/
+  `WeekAttendee` kayıtları reset sonrası tamamen değişmeden kalır (aynı
+  test içinde ikinci bir kontrol haftası fixture'ı oluşturulup karşılaştırılır)
 - `removeAttendees=false` → `WeekAttendee` korunur
 - `removeAttendees=true` → `WeekAttendee` silinir
 - İkinci kez sıfırlama idempotent: tüm `deleted` alanları `0`, hata yok, 200 döner
-- Transaction ortasında zorlanan bir hata (ör. `tx.team.deleteMany` mock'lanıp
-  reject ettirilir) → hiçbir tablo değişmez (rollback doğrulanır)
+- **Gerçek rollback**: transaction ortasında kasıtlı hata (ör. `teamPlayerId`
+  alanına DB seviyesinde geçersiz bir değer yazmayı deneyen ekstra bir adım,
+  veya `tx.$executeRaw` ile tetiklenen bir constraint ihlali) fırlatılır;
+  transaction sonrası fixture haftasının `Team`/`Match`/`WeeklyMvp` satırları
+  **hiç değişmemiş** olduğu doğrulanır — gerçek PostgreSQL rollback davranışı
+  kanıtlanır, `deleteMany` mock'lanmaz.
+
+Ayrıca `weekResetService.ts` içindeki adım **sıralamasının** doğru
+çağrıldığını (hangi tx metodunun hangi sırayla, hangi `where` ile çağrıldığı)
+doğrulamak için ayrı, DB'siz bir **service orchestration unit testi**
+(`weekResetService.orchestration.test.ts`) yazılır: `tx` parametresi olarak
+sahte (mock) bir Prisma client geçirilir ve çağrı sırası/argümanları
+(`vi.fn()` ile) doğrulanır. Bu test rollback'i **kanıtlamaz** — sadece
+kodun doğru sırayla doğru sorguları oluşturduğunu kanıtlar; rollback
+kanıtı yalnızca yukarıdaki gerçek entegrasyon testine aittir.
 
 **Kapsam dışı bırakılan test:** "Yetkisiz erişim reddedilir" — bu davranış
 route koduna değil `src/middleware.ts`'e ait ve proje genelinde hiçbir route
@@ -287,17 +380,22 @@ gerektirmiyor, sadece browser'da doğrulanacak.
 - **`removeAttendees=true` sonrası TeamBuilder'ın katılımcı listesi boşalır**:
   beklenen davranış, checkbox varsayılan `false` olduğu için normal akışta
   tetiklenmez.
-- **Yeni entegrasyon test deseni — somut tehlike doğrulandı**: `vitest.config.ts`
-  ayrı bir test veritabanı tanımlamıyor (`include: ['src/**/*.test.ts']`,
-  başka hiçbir DB ayarı yok). Yani `weekResetService.integration.test.ts`
-  korumasız bırakılırsa `npm test` (`vitest run`) çalıştığında `.env`/
-  `.env.local` içindeki **gerçek geliştirme veritabanına** karşı çalışır ve
-  gerçek `Week`/`Team`/`Match` kayıtlarını silebilir — az önce 31.07.2026
-  haftası için elle yaptığımız temizlikle aynı DB. Plan aşamasında bu dosya
-  `process.env.RUN_DB_TESTS === '1'` gibi bir bayrakla korunacak ve `describe.skipIf`
-  ile varsayılan `npm test` çalışmasından hariç tutulacak; sadece bilinçli
-  şekilde (`RUN_DB_TESTS=1 npx vitest run weekResetService.integration.test.ts`)
-  ve tercihen ayrı bir `DATABASE_URL` ile çalıştırılacak şekilde yazılacak.
-  Bu, planlama aşamasında netleştirilecek zorunlu bir görev.
+- **Yeni entegrasyon test deseni — somut tehlike, üç katmanlı korumayla
+  kapatıldı**: `vitest.config.ts` ayrı bir test veritabanı tanımlamıyor
+  (`include: ['src/**/*.test.ts']`, başka hiçbir DB ayarı yok). Korumasız
+  bırakılsaydı `weekResetService.integration.test.ts`, `npm test`
+  (`vitest run`) çalıştığında `.env`/`.env.local` içindeki **gerçek
+  geliştirme veritabanına** karşı çalışıp gerçek `Week`/`Team`/`Match`
+  kayıtlarını silebilirdi — az önce 31.07.2026 haftası için elle yaptığımız
+  temizlikle aynı DB. Bu artık üç bağımsız katmanla engelleniyor: (1) dosya
+  içi `RUN_DB_TESTS==='1' && TEST_DATABASE_URL && TEST_DATABASE_URL !==
+  DATABASE_URL` kontrolü sağlanmazsa `describe.skip`, (2) test client'ı
+  singleton yerine açıkça `TEST_DATABASE_URL` ile kurulur — yanlışlıkla
+  `DATABASE_URL`'e düşme imkânı yok, (3) `"test": "vitest run"` script'i
+  değişmediği için normal `npm test`/CI hiçbir zaman bu dosyayı riskli
+  şekilde tetiklemez; ayrı `npm run test:db` script'i gerekir. Kalan tek
+  operasyonel görev: geliştirme ortamında gerçek bir `TEST_DATABASE_URL`
+  sağlamak (ayrı bir Postgres DB/şema) — bu env kurulumu plan aşamasında
+  dokümante edilecek, kod değişikliği değil.
 - **`WeekStatus` genişlemesi yok**: `'draft'` zaten `WEEK_STATUSES` içinde
   tanımlı (`src/lib/constants.ts:19`), şema/migration değişikliği gerekmiyor.
