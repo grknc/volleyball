@@ -31,8 +31,8 @@ export default function LoginPage() {
       <h1 className="text-xl font-bold mb-4">Yönetici Girişi</h1>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <input
-          type="email"
-          placeholder="E-posta"
+          type="text"
+          placeholder="Kullanıcı adı"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           className="border rounded px-3 py-2"
