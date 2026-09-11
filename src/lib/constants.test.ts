@@ -3,6 +3,7 @@ import {
   isValidAvatarUrl,
   isValidPlayerPosition,
   isValidWeekStatus,
+  isWeekEditableForScores,
   PLAYER_POSITIONS,
   WEEK_STATUSES,
 } from './constants';
@@ -65,5 +66,18 @@ describe('isValidWeekStatus', () => {
     expect(isValidWeekStatus(123)).toBe(false);
     expect(isValidWeekStatus(null)).toBe(false);
     expect(isValidWeekStatus(undefined)).toBe(false);
+  });
+});
+
+describe('isWeekEditableForScores', () => {
+  it('allows editing for published, completed, and cancelled weeks', () => {
+    expect(isWeekEditableForScores('published')).toBe(true);
+    expect(isWeekEditableForScores('completed')).toBe(true);
+    expect(isWeekEditableForScores('cancelled')).toBe(true);
+  });
+
+  it('blocks editing for draft and archived weeks', () => {
+    expect(isWeekEditableForScores('draft')).toBe(false);
+    expect(isWeekEditableForScores('archived')).toBe(false);
   });
 });

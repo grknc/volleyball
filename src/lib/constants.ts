@@ -24,6 +24,10 @@ export function isValidWeekStatus(value: unknown): value is WeekStatus {
   return typeof value === 'string' && (WEEK_STATUSES as readonly string[]).includes(value);
 }
 
+export function isWeekEditableForScores(status: WeekStatus): boolean {
+  return status !== 'draft' && status !== 'archived';
+}
+
 export const WEEK_STATUS_LABELS: Record<WeekStatus, string> = {
   draft: 'Taslak',
   published: 'Yayında',

@@ -1,7 +1,9 @@
 import { PlayerAvatar } from '@/components/PlayerAvatar';
+import { PublicMatchEditor } from '@/components/PublicMatchEditor';
+import { isWeekEditableForScores } from '@/lib/constants';
 import type { WeekViewData } from '@/lib/weekView';
 
-function TeamRoster({ teamId, week }: { teamId: string; week: WeekViewData }) {
+export function TeamRoster({ teamId, week }: { teamId: string; week: WeekViewData }) {
   const team = week.teams.find((t) => t.id === teamId);
   if (!team) return <>{teamId}</>;
   return (
@@ -22,13 +24,13 @@ function TeamRoster({ teamId, week }: { teamId: string; week: WeekViewData }) {
   );
 }
 
-function MatchResultCard({ match, week }: { match: WeekViewData['matches'][number]; week: WeekViewData }) {
+export function MatchResultContent({ match, week }: { match: WeekViewData['matches'][number]; week: WeekViewData }) {
   const teamAName = week.teams.find((t) => t.id === match.teamAId)?.name ?? '';
   const teamBName = week.teams.find((t) => t.id === match.teamBId)?.name ?? '';
   const winner = match.result?.winner;
 
   return (
-    <li className="border border-slate-200 rounded-lg p-3">
+    <>
       <div className="flex items-center justify-between gap-3">
         <div className={`flex-1 text-sm ${winner === 'A' ? 'font-semibold' : 'text-slate-600'}`}>
           <TeamRoster teamId={match.teamAId} week={week} />
@@ -56,6 +58,14 @@ function MatchResultCard({ match, week }: { match: WeekViewData['matches'][numbe
       ) : (
         <p className="text-center text-slate-500 text-xs mt-2">Henüz oynanmadı</p>
       )}
+    </>
+  );
+}
+
+function MatchResultCard({ match, week }: { match: WeekViewData['matches'][number]; week: WeekViewData }) {
+  return (
+    <li className="border border-slate-200 rounded-lg p-3">
+      <MatchResultContent match={match} week={week} />
     </li>
   );
 }
@@ -101,7 +111,9 @@ export function WeekView({ week }: { week: WeekViewData }) {
 
       <section className="mb-8">
         <h2 className="text-lg font-semibold mb-2">Maç Sonuçları</h2>
-        {week.matches.length === 0 ? (
+        {isWeekEditableForScores(week.status) ? (
+          <PublicMatchEditor week={week} />
+        ) : week.matches.length === 0 ? (
           <p className="text-slate-500">Henüz maç planlanmadı.</p>
         ) : (
           <ul className="flex flex-col gap-3">
