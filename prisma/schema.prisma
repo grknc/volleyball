@@ -69,15 +69,16 @@ model TeamPlayer {
 }
 
 model Match {
-  id        String   @id @default(cuid())
-  weekId    String
-  teamAId   String
-  teamBId   String
-  sets      Json
-  createdAt DateTime @default(now())
-  week      Week     @relation(fields: [weekId], references: [id], onDelete: Cascade)
-  teamA     Team     @relation("MatchTeamA", fields: [teamAId], references: [id], onDelete: Cascade)
-  teamB     Team     @relation("MatchTeamB", fields: [teamBId], references: [id], onDelete: Cascade)
+  id           String   @id @default(cuid())
+  weekId       String
+  teamAId      String
+  teamBId      String
+  sets         Json
+  targetPoints Int?
+  createdAt    DateTime @default(now())
+  week         Week     @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  teamA        Team     @relation("MatchTeamA", fields: [teamAId], references: [id], onDelete: Cascade)
+  teamB        Team     @relation("MatchTeamB", fields: [teamBId], references: [id], onDelete: Cascade)
 
   @@index([weekId])
   @@index([teamAId])

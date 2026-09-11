@@ -36,6 +36,36 @@ describe('computeMatchResult', () => {
   });
 });
 
+describe('computeMatchResult with targetPoints', () => {
+  it('accepts a set that reaches the target with a 2-point margin', () => {
+    const result = computeMatchResult([[25, 20], [25, 18]], 25);
+    expect(result).toEqual({ setsWonA: 2, setsWonB: 0, winner: 'A', pointsA: 3, pointsB: 0 });
+  });
+
+  it('accepts a 21-point target match', () => {
+    const result = computeMatchResult([[21, 17], [21, 15]], 21);
+    expect(result).toEqual({ setsWonA: 2, setsWonB: 0, winner: 'A', pointsA: 3, pointsB: 0 });
+  });
+
+  it('accepts a deuce win beyond the target with a 2-point margin', () => {
+    const result = computeMatchResult([[27, 25], [25, 18]], 25);
+    expect(result.setsWonA).toBe(2);
+  });
+
+  it('throws when the winning score never reaches the target', () => {
+    expect(() => computeMatchResult([[24, 20], [25, 18]], 25)).toThrow();
+  });
+
+  it('throws when the winning margin is less than 2 points at the target', () => {
+    expect(() => computeMatchResult([[25, 24], [25, 18]], 25)).toThrow();
+  });
+
+  it('does not enforce the target/margin rule when no target is given (legacy matches)', () => {
+    const result = computeMatchResult([[24, 20], [25, 18]]);
+    expect(result.setsWonA).toBe(2);
+  });
+});
+
 describe('isCompletedMatch', () => {
   it('returns true for a valid 2-set sweep', () => {
     expect(isCompletedMatch({ sets: [[25, 20], [25, 18]] })).toBe(true);
@@ -58,6 +88,14 @@ describe('isCompletedMatch', () => {
     expect(isCompletedMatch({ sets: [], status: 'COMPLETED' })).toBe(true);
     expect(isCompletedMatch({ sets: [[25, 20], [25, 18]], status: 'CANCELLED' })).toBe(false);
     expect(isCompletedMatch({ sets: [[25, 20], [25, 18]], status: 'SCHEDULED' })).toBe(false);
+  });
+
+  it('returns false when a set has not reached the given target', () => {
+    expect(isCompletedMatch({ sets: [[24, 20], [25, 18]] }, 25)).toBe(false);
+  });
+
+  it('returns true when every set satisfies the given target', () => {
+    expect(isCompletedMatch({ sets: [[21, 17], [21, 15]] }, 21)).toBe(true);
   });
 });
 

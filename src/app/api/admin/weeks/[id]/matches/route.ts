@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { isValidTargetPoints } from '@/lib/constants';
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   const body = await request.json();
-  const { teamAId, teamBId } = body;
+  const { teamAId, teamBId, targetPoints } = body;
   if (typeof teamAId !== 'string' || typeof teamBId !== 'string' || teamAId === teamBId) {
     return NextResponse.json({ error: 'İki farklı takım seçmelisin' }, { status: 400 });
   }
+  if (!isValidTargetPoints(targetPoints)) {
+    return NextResponse.json({ error: 'Maçın kaç sayıya oynanacağını seçmelisin (25 veya 21)' }, { status: 400 });
+  }
   const match = await prisma.match.create({
-    data: { weekId: params.id, teamAId, teamBId, sets: [] },
+    data: { weekId: params.id, teamAId, teamBId, sets: [], targetPoints },
   });
   return NextResponse.json({ match }, { status: 201 });
 }

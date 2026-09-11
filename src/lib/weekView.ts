@@ -22,6 +22,7 @@ export interface WeekViewData {
     teamAId: string;
     teamBId: string;
     sets: SetScore[];
+    targetPoints: number | null;
     result: MatchResult | null;
   }[];
   standings: StandingsRow[];
@@ -58,8 +59,9 @@ export async function getWeekView(weekId: string): Promise<WeekViewData | null> 
 
   const matches = week.matches.map((m) => {
     const sets = m.sets as SetScore[];
-    const result = isCompletedMatch({ sets }) ? computeMatchResult(sets) : null;
-    return { id: m.id, teamAId: m.teamAId, teamBId: m.teamBId, sets, result };
+    const targetPoints = m.targetPoints ?? undefined;
+    const result = isCompletedMatch({ sets }, targetPoints) ? computeMatchResult(sets, targetPoints) : null;
+    return { id: m.id, teamAId: m.teamAId, teamBId: m.teamBId, sets, targetPoints: m.targetPoints, result };
   });
 
   const playedMatches = matches.filter((m) => isCompletedMatch({ sets: m.sets }));

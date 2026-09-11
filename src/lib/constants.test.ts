@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   isValidAvatarUrl,
   isValidPlayerPosition,
+  isValidTargetPoints,
   isValidWeekStatus,
   isWeekEditableForScores,
+  MATCH_TARGET_POINTS,
   PLAYER_POSITIONS,
   WEEK_STATUSES,
 } from './constants';
@@ -66,6 +68,24 @@ describe('isValidWeekStatus', () => {
     expect(isValidWeekStatus(123)).toBe(false);
     expect(isValidWeekStatus(null)).toBe(false);
     expect(isValidWeekStatus(undefined)).toBe(false);
+  });
+});
+
+describe('isValidTargetPoints', () => {
+  it('accepts every value in MATCH_TARGET_POINTS', () => {
+    for (const target of MATCH_TARGET_POINTS) {
+      expect(isValidTargetPoints(target)).toBe(true);
+    }
+  });
+
+  it('rejects a number not in the list', () => {
+    expect(isValidTargetPoints(15)).toBe(false);
+  });
+
+  it('rejects non-number values', () => {
+    expect(isValidTargetPoints('25')).toBe(false);
+    expect(isValidTargetPoints(null)).toBe(false);
+    expect(isValidTargetPoints(undefined)).toBe(false);
   });
 });
 

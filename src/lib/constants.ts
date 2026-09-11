@@ -16,6 +16,14 @@ export function isValidAvatarUrl(value: unknown): value is string {
   }
 }
 
+export const MATCH_TARGET_POINTS = [25, 21] as const;
+
+export type MatchTargetPoints = (typeof MATCH_TARGET_POINTS)[number];
+
+export function isValidTargetPoints(value: unknown): value is MatchTargetPoints {
+  return typeof value === 'number' && (MATCH_TARGET_POINTS as readonly number[]).includes(value);
+}
+
 export const WEEK_STATUSES = ['draft', 'published', 'completed', 'cancelled', 'archived'] as const;
 
 export type WeekStatus = (typeof WEEK_STATUSES)[number];

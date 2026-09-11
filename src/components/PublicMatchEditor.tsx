@@ -3,12 +3,14 @@
 import { useState } from 'react';
 import { MatchResultContent } from '@/components/WeekView';
 import { computeMatchResult, isCompletedMatch, type SetScore } from '@/lib/matchScoring';
+import { MATCH_TARGET_POINTS } from '@/lib/constants';
 import type { WeekViewData } from '@/lib/weekView';
 
 type MatchItem = WeekViewData['matches'][number];
 
-function toResult(sets: SetScore[]): MatchItem['result'] {
-  return isCompletedMatch({ sets }) ? computeMatchResult(sets) : null;
+function toResult(sets: SetScore[], targetPoints: number | null): MatchItem['result'] {
+  const target = targetPoints ?? undefined;
+  return isCompletedMatch({ sets }, target) ? computeMatchResult(sets, target) : null;
 }
 
 function ScoreEditForm({ match, onSaved }: { match: MatchItem; onSaved: (m: MatchItem) => void }) {
@@ -26,28 +28,45 @@ function ScoreEditForm({ match, onSaved }: { match: MatchItem; onSaved: (m: Matc
     if (sets.length < 3) setSets((prev) => [...prev, [0, 0]]);
   }
 
-  async function save() {
-    setError(null);
+  async function patchSets(newSets: SetScore[]) {
     setSaving(true);
     try {
       const res = await fetch(`/api/matches/${match.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sets }),
+        body: JSON.stringify({ sets: newSets }),
       });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error ?? 'Skor kaydedilemedi');
         return;
       }
-      onSaved({ ...match, sets: data.match.sets, result: toResult(data.match.sets) });
+      onSaved({ ...match, sets: data.match.sets, result: toResult(data.match.sets, match.targetPoints) });
     } finally {
       setSaving(false);
     }
   }
 
+  async function save() {
+    setError(null);
+    try {
+      computeMatchResult(sets, match.targetPoints ?? undefined);
+    } catch (err) {
+      setError((err as Error).message);
+      return;
+    }
+    await patchSets(sets);
+  }
+
+  async function clearScore() {
+    setError(null);
+    await patchSets([]);
+    setSets([[0, 0], [0, 0]]);
+  }
+
   return (
     <div className="mt-2 flex flex-col gap-2 border-t border-slate-100 pt-2">
+      {match.targetPoints && <p className="text-xs text-slate-500">Bu maç {match.targetPoints} sayıya oynanıyor</p>}
       <div className="flex flex-wrap gap-2">
         {sets.map((set, index) => (
           <div key={index} className="flex gap-1 items-center">
@@ -75,13 +94,24 @@ function ScoreEditForm({ match, onSaved }: { match: MatchItem; onSaved: (m: Matc
         )}
       </div>
       {error && <p className="text-red-600 text-xs">{error}</p>}
-      <button
-        onClick={save}
-        disabled={saving}
-        className="bg-emerald-700 text-white rounded px-3 py-1 w-fit text-sm disabled:opacity-50"
-      >
-        {saving ? 'Kaydediliyor…' : 'Skoru Kaydet'}
-      </button>
+      <div className="flex gap-2">
+        <button
+          onClick={save}
+          disabled={saving}
+          className="bg-emerald-700 text-white rounded px-3 py-1 w-fit text-sm disabled:opacity-50"
+        >
+          {saving ? 'Kaydediliyor…' : 'Skoru Kaydet'}
+        </button>
+        {match.sets.length > 0 && (
+          <button
+            onClick={clearScore}
+            disabled={saving}
+            className="text-red-600 border border-red-200 rounded px-3 py-1 w-fit text-sm disabled:opacity-50"
+          >
+            Skoru Sil
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -95,6 +125,7 @@ function AddMatchForm({
 }) {
   const [teamAId, setTeamAId] = useState(week.teams[0]?.id ?? '');
   const [teamBId, setTeamBId] = useState(week.teams[1]?.id ?? '');
+  const [targetPoints, setTargetPoints] = useState<number>(MATCH_TARGET_POINTS[0]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -105,14 +136,21 @@ function AddMatchForm({
       const res = await fetch(`/api/weeks/${week.id}/matches`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ teamAId, teamBId }),
+        body: JSON.stringify({ teamAId, teamBId, targetPoints }),
       });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error ?? 'Maç eklenemedi');
         return;
       }
-      onAdded({ id: data.match.id, teamAId: data.match.teamAId, teamBId: data.match.teamBId, sets: [], result: null });
+      onAdded({
+        id: data.match.id,
+        teamAId: data.match.teamAId,
+        teamBId: data.match.teamBId,
+        sets: [],
+        targetPoints: data.match.targetPoints,
+        result: null,
+      });
     } finally {
       setSaving(false);
     }
@@ -129,6 +167,15 @@ function AddMatchForm({
       <select value={teamBId} onChange={(e) => setTeamBId(e.target.value)} className="border rounded px-2 py-1 text-sm">
         {week.teams.map((t) => (
           <option key={t.id} value={t.id}>{t.name}</option>
+        ))}
+      </select>
+      <select
+        value={targetPoints}
+        onChange={(e) => setTargetPoints(Number(e.target.value))}
+        className="border rounded px-2 py-1 text-sm"
+      >
+        {MATCH_TARGET_POINTS.map((points) => (
+          <option key={points} value={points}>{points} sayı</option>
         ))}
       </select>
       <button

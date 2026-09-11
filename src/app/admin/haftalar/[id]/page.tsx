@@ -63,6 +63,7 @@ export default async function WeekDetailPage({ params }: { params: { id: string 
             teamAId: m.teamAId,
             teamBId: m.teamBId,
             sets: m.sets as [number, number][],
+            targetPoints: m.targetPoints,
           }))}
         />
 

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { computeMatchResult } from '@/lib/matchScoring';
+import { MATCH_TARGET_POINTS } from '@/lib/constants';
 
 interface TeamOption {
   id: string;
@@ -13,6 +14,7 @@ interface MatchItem {
   teamAId: string;
   teamBId: string;
   sets: [number, number][];
+  targetPoints: number | null;
 }
 
 interface Props {
@@ -26,6 +28,7 @@ function ScoreForm({ match, onSaved }: { match: MatchItem; onSaved: (m: MatchIte
     match.sets.length > 0 ? match.sets : [[0, 0], [0, 0]],
   );
   const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   function updateSet(index: number, side: 0 | 1, value: number) {
     setSets((prev) =>
@@ -39,29 +42,45 @@ function ScoreForm({ match, onSaved }: { match: MatchItem; onSaved: (m: MatchIte
     if (sets.length < 3) setSets((prev) => [...prev, [0, 0]]);
   }
 
+  async function patchSets(newSets: [number, number][]) {
+    setSaving(true);
+    try {
+      const res = await fetch(`/api/admin/matches/${match.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sets: newSets }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? 'Skor kaydedilemedi');
+        return;
+      }
+      onSaved(data.match);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function save() {
     setError(null);
     try {
-      computeMatchResult(sets);
+      computeMatchResult(sets, match.targetPoints ?? undefined);
     } catch (err) {
       setError((err as Error).message);
       return;
     }
-    const res = await fetch(`/api/admin/matches/${match.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sets }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      setError(data.error ?? 'Skor kaydedilemedi');
-      return;
-    }
-    onSaved(data.match);
+    await patchSets(sets);
+  }
+
+  async function clearScore() {
+    setError(null);
+    await patchSets([]);
+    setSets([[0, 0], [0, 0]]);
   }
 
   return (
     <div className="flex flex-col gap-2">
+      {match.targetPoints && <p className="text-xs text-slate-500">Bu maç {match.targetPoints} sayıya oynanıyor</p>}
       <div className="flex gap-2">
         {sets.map((set, index) => (
           <div key={index} className="flex gap-1 items-center">
@@ -89,9 +108,16 @@ function ScoreForm({ match, onSaved }: { match: MatchItem; onSaved: (m: MatchIte
         )}
       </div>
       {error && <p className="text-red-600 text-sm">{error}</p>}
-      <button onClick={save} className="bg-emerald-700 text-white rounded px-3 py-1 w-fit">
-        Skoru Kaydet
-      </button>
+      <div className="flex gap-2">
+        <button onClick={save} disabled={saving} className="bg-emerald-700 text-white rounded px-3 py-1 w-fit disabled:opacity-50">
+          Skoru Kaydet
+        </button>
+        {match.sets.length > 0 && (
+          <button onClick={clearScore} disabled={saving} className="text-red-600 border border-red-200 rounded px-3 py-1 w-fit disabled:opacity-50">
+            Skoru Sil
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -100,6 +126,7 @@ export function FixtureManager({ weekId, teams, initialMatches }: Props) {
   const [matches, setMatches] = useState<MatchItem[]>(initialMatches);
   const [teamAId, setTeamAId] = useState(teams[0]?.id ?? '');
   const [teamBId, setTeamBId] = useState(teams[1]?.id ?? '');
+  const [targetPoints, setTargetPoints] = useState<number>(MATCH_TARGET_POINTS[0]);
   const [error, setError] = useState<string | null>(null);
 
   function teamName(id: string) {
@@ -111,7 +138,7 @@ export function FixtureManager({ weekId, teams, initialMatches }: Props) {
     const res = await fetch(`/api/admin/weeks/${weekId}/matches`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ teamAId, teamBId }),
+      body: JSON.stringify({ teamAId, teamBId, targetPoints }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -138,6 +165,15 @@ export function FixtureManager({ weekId, teams, initialMatches }: Props) {
         <select value={teamBId} onChange={(e) => setTeamBId(e.target.value)} className="border rounded px-2 py-1">
           {teams.map((t) => (
             <option key={t.id} value={t.id}>{t.name}</option>
+          ))}
+        </select>
+        <select
+          value={targetPoints}
+          onChange={(e) => setTargetPoints(Number(e.target.value))}
+          className="border rounded px-2 py-1"
+        >
+          {MATCH_TARGET_POINTS.map((points) => (
+            <option key={points} value={points}>{points} sayı</option>
           ))}
         </select>
         <button onClick={addMatch} className="bg-slate-900 text-white rounded px-3 py-1">

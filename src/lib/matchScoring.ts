@@ -8,7 +8,7 @@ export interface MatchResult {
   pointsB: number;
 }
 
-export function computeMatchResult(sets: SetScore[]): MatchResult {
+export function computeMatchResult(sets: SetScore[], targetPoints?: number): MatchResult {
   if (sets.length < 2 || sets.length > 3) {
     throw new Error('Bir maç 2 veya 3 setten oluşmalı');
   }
@@ -17,6 +17,16 @@ export function computeMatchResult(sets: SetScore[]): MatchResult {
   let setsWonB = 0;
   for (const [a, b] of sets) {
     if (a === b) throw new Error('Bir set berabere bitemez');
+    if (targetPoints !== undefined) {
+      const winnerScore = Math.max(a, b);
+      const loserScore = Math.min(a, b);
+      if (winnerScore < targetPoints) {
+        throw new Error(`Bir set, kazanan takım en az ${targetPoints} sayıya ulaşmadan bitemez`);
+      }
+      if (winnerScore - loserScore < 2) {
+        throw new Error('Bir set, kazanan takım en az 2 sayı farkla önde bitmeli');
+      }
+    }
     if (a > b) setsWonA++; else setsWonB++;
   }
 
@@ -42,13 +52,13 @@ export interface MatchLike {
   status?: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED'; // Match.status does not exist in the DB yet; when it's added, wire it through here and every caller of isCompletedMatch benefits automatically.
 }
 
-export function isCompletedMatch(match: MatchLike): boolean {
+export function isCompletedMatch(match: MatchLike, targetPoints?: number): boolean {
   if (match.status) {
     return match.status === 'COMPLETED';
   }
   if (match.sets.length < 2) return false;
   try {
-    computeMatchResult(match.sets);
+    computeMatchResult(match.sets, targetPoints);
     return true;
   } catch {
     return false;
