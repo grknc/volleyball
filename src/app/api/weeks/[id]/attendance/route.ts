@@ -19,8 +19,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   if (typeof playerId !== 'string' || !isRsvpChoice(choice)) {
     return NextResponse.json({ error: 'Oyuncu ve seçim (yes/no/none) gerekli' }, { status: 400 });
   }
+  let result;
   try {
-    await setAttendance(params.id, playerId, choice);
+    result = await setAttendance(params.id, playerId, choice);
   } catch (err) {
     if (err instanceof AttendanceError) {
       return NextResponse.json({ error: err.message }, { status: err.status });
@@ -28,5 +29,5 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     throw err;
   }
   const attendance = await getWeekAttendance(params.id);
-  return NextResponse.json({ attendance });
+  return NextResponse.json({ attendance, result });
 }

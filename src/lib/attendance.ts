@@ -1,10 +1,19 @@
 import { prisma } from '@/lib/db';
 import { getRatingSnapshot, ratingOf } from '@/lib/ratingService';
 import { suggestFormats, type FormatOption } from '@/lib/teamBalancer';
+import {
+  applyRsvp,
+  fillFromWaitlist,
+  isValidCapacity,
+  type RosterState,
+  type RsvpOutcome,
+} from '@/lib/capacity';
+import type { Prisma } from '@prisma/client';
 
 /**
  * Katılım bildirimi:
- *  - "Geliyorum"  → WeekAttendee kaydı (takım önerisi, MVP vb. bunu kullanır)
+ *  - "Geliyorum"  → WeekAttendee kaydı (takım önerisi, MVP vb. bunu kullanır);
+ *                   kontenjan doluysa WeekWaitlist (yedek) kaydı
  *  - "Gelmiyorum" → WeekAbsence kaydı
  *  - Yanıt yok    → ikisi de yok
  */
@@ -30,7 +39,11 @@ export interface WeekAttendance {
   /** Oyuncular kendi katılımını değiştirebilir mi? */
   open: boolean;
   teamsCreated: boolean;
+  /** null = sınırsız */
+  capacity: number | null;
   coming: AttendancePlayer[];
+  /** Yedekler, sıralı */
+  waitlist: AttendancePlayer[];
   notComing: AttendancePlayer[];
   noResponse: AttendancePlayer[];
   /** Takıma yerleştirilmiş oyuncular (bunlar herkese açık ekrandan katılım değiştiremez) */
@@ -58,6 +71,7 @@ export async function getWeekAttendance(weekId: string): Promise<WeekAttendance 
       include: {
         attendees: { include: { player: true } },
         absences: { include: { player: true } },
+        waitlist: { include: { player: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] },
         teams: { include: { players: { select: { playerId: true } } } },
       },
     }),
@@ -76,14 +90,16 @@ export async function getWeekAttendance(weekId: string): Promise<WeekAttendance 
   const byName = (a: AttendancePlayer, b: AttendancePlayer) => a.name.localeCompare(b.name, 'tr');
 
   const comingIds = new Set(week.attendees.map((a) => a.playerId));
+  const waitIds = new Set(week.waitlist.map((w) => w.playerId));
   const notComingIds = new Set(week.absences.map((a) => a.playerId));
   const coming = week.attendees.map((a) => toPlayer(a.player)).sort(byName);
+  const waitlist = week.waitlist.filter((w) => !comingIds.has(w.playerId)).map((w) => toPlayer(w.player));
   const notComing = week.absences
-    .filter((a) => !comingIds.has(a.playerId))
+    .filter((a) => !comingIds.has(a.playerId) && !waitIds.has(a.playerId))
     .map((a) => toPlayer(a.player))
     .sort(byName);
   const noResponse = activePlayers
-    .filter((p) => !comingIds.has(p.id) && !notComingIds.has(p.id))
+    .filter((p) => !comingIds.has(p.id) && !notComingIds.has(p.id) && !waitIds.has(p.id))
     .map(toPlayer)
     .sort(byName);
 
@@ -92,7 +108,9 @@ export async function getWeekAttendance(weekId: string): Promise<WeekAttendance 
     weekDate: week.date.toISOString(),
     open: isRsvpOpen(week.status),
     teamsCreated: week.teams.length > 0,
+    capacity: week.capacity,
     coming,
+    waitlist,
     notComing,
     noResponse,
     lockedPlayerIds: week.teams.flatMap((t) => t.players.map((p) => p.playerId)),
@@ -100,12 +118,52 @@ export async function getWeekAttendance(weekId: string): Promise<WeekAttendance 
   };
 }
 
+async function readRoster(tx: Prisma.TransactionClient, weekId: string, capacity: number | null): Promise<RosterState> {
+  const [attendees, waitlist, absences] = await Promise.all([
+    tx.weekAttendee.findMany({ where: { weekId }, select: { playerId: true } }),
+    tx.weekWaitlist.findMany({ where: { weekId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: { playerId: true } }),
+    tx.weekAbsence.findMany({ where: { weekId }, select: { playerId: true } }),
+  ]);
+  return {
+    capacity,
+    attendees: attendees.map((a) => a.playerId),
+    waitlist: waitlist.map((w) => w.playerId),
+    absences: absences.map((a) => a.playerId),
+  };
+}
+
+/** Eski ve yeni durum arasındaki farkı DB'ye yazar. */
+async function writeRoster(tx: Prisma.TransactionClient, weekId: string, before: RosterState, after: RosterState) {
+  const diff = (a: string[], b: string[]) => a.filter((id) => !b.includes(id));
+
+  const attendeeRemove = diff(before.attendees, after.attendees);
+  const attendeeAdd = diff(after.attendees, before.attendees);
+  const waitRemove = diff(before.waitlist, after.waitlist);
+  const waitAdd = diff(after.waitlist, before.waitlist);
+  const absRemove = diff(before.absences, after.absences);
+  const absAdd = diff(after.absences, before.absences);
+
+  if (attendeeRemove.length) await tx.weekAttendee.deleteMany({ where: { weekId, playerId: { in: attendeeRemove } } });
+  if (waitRemove.length) await tx.weekWaitlist.deleteMany({ where: { weekId, playerId: { in: waitRemove } } });
+  if (absRemove.length) await tx.weekAbsence.deleteMany({ where: { weekId, playerId: { in: absRemove } } });
+  for (const playerId of attendeeAdd) await tx.weekAttendee.create({ data: { weekId, playerId } });
+  // Yedekler sırayla eklenir (createdAt sırayı belirler)
+  for (const playerId of waitAdd) await tx.weekWaitlist.create({ data: { weekId, playerId } });
+  for (const playerId of absAdd) await tx.weekAbsence.create({ data: { weekId, playerId } });
+}
+
+export interface SetAttendanceResult {
+  outcome: RsvpOutcome;
+  waitlistPosition: number | null;
+  promotedNames: string[];
+}
+
 export async function setAttendance(
   weekId: string,
   playerId: string,
   choice: RsvpChoice,
   { asAdmin = false }: { asAdmin?: boolean } = {}
-): Promise<void> {
+): Promise<SetAttendanceResult> {
   const [week, player] = await Promise.all([
     prisma.week.findUnique({
       where: { id: weekId },
@@ -132,17 +190,35 @@ export async function setAttendance(
     }
   }
 
-  const key = { weekId_playerId: { weekId, playerId } };
-  await prisma.$transaction(async (tx) => {
-    if (choice === 'yes') {
-      await tx.weekAbsence.deleteMany({ where: { weekId, playerId } });
-      await tx.weekAttendee.upsert({ where: key, create: { weekId, playerId }, update: {} });
-    } else if (choice === 'no') {
-      await tx.weekAttendee.deleteMany({ where: { weekId, playerId } });
-      await tx.weekAbsence.upsert({ where: key, create: { weekId, playerId }, update: {} });
-    } else {
-      await tx.weekAttendee.deleteMany({ where: { weekId, playerId } });
-      await tx.weekAbsence.deleteMany({ where: { weekId, playerId } });
-    }
+  const result = await prisma.$transaction(async (tx) => {
+    const before = await readRoster(tx, weekId, week.capacity);
+    const r = applyRsvp(before, playerId, choice, { asAdmin });
+    await writeRoster(tx, weekId, before, r.state);
+    return r;
+  });
+
+  const promoted = result.promoted.length
+    ? await prisma.player.findMany({ where: { id: { in: result.promoted } }, select: { id: true, name: true } })
+    : [];
+  return {
+    outcome: result.outcome,
+    waitlistPosition: result.waitlistPosition,
+    promotedNames: result.promoted.map((id) => promoted.find((p) => p.id === id)?.name ?? '?'),
+  };
+}
+
+/** Kontenjanı değiştirir; yer açıldıysa yedekleri sırayla katılımcı yapar. */
+export async function setWeekCapacity(weekId: string, capacity: unknown): Promise<{ promoted: number }> {
+  if (!isValidCapacity(capacity)) {
+    throw new AttendanceError('Kontenjan 4-60 arasında bir sayı ya da boş (sınırsız) olmalı', 400);
+  }
+  return prisma.$transaction(async (tx) => {
+    const week = await tx.week.findUnique({ where: { id: weekId } });
+    if (!week) throw new AttendanceError('Hafta bulunamadı', 404);
+    await tx.week.update({ where: { id: weekId }, data: { capacity } });
+    const before = await readRoster(tx, weekId, capacity);
+    const filled = fillFromWaitlist(before);
+    await writeRoster(tx, weekId, before, filled.state);
+    return { promoted: filled.promoted.length };
   });
 }

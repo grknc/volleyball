@@ -21,6 +21,7 @@ model Player {
   teamPlayers     TeamPlayer[]
   weekAttendances WeekAttendee[]
   weekAbsences    WeekAbsence[]
+  weekWaitlists   WeekWaitlist[]
   mvps            WeeklyMvp[]
 }
 
@@ -28,9 +29,12 @@ model Week {
   id        String         @id @default(cuid())
   date      DateTime
   status    String         @default("draft")
+  /// Kontenjan (null = sınırsız). Dolunca yeni "Geliyorum" diyenler yedek listesine düşer.
+  capacity  Int?
   createdAt DateTime       @default(now())
   attendees WeekAttendee[]
   absences  WeekAbsence[]
+  waitlist  WeekWaitlist[]
   teams     Team[]
   matches   Match[]
   mvps      WeeklyMvp[]
@@ -51,6 +55,19 @@ model WeekAttendee {
 
 /// Oyuncunun "Gelmiyorum" bildirimi. "Geliyorum" = WeekAttendee kaydı.
 model WeekAbsence {
+  id        String   @id @default(cuid())
+  weekId    String
+  playerId  String
+  createdAt DateTime @default(now())
+  week      Week     @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([weekId, playerId])
+  @@index([playerId])
+}
+
+/// Yedek listesi — sıra createdAt'e göre.
+model WeekWaitlist {
   id        String   @id @default(cuid())
   weekId    String
   playerId  String

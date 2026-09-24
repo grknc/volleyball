@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { CAPACITY_MAX, CAPACITY_MIN, CAPACITY_PRESETS, capacityLabel } from '@/lib/capacity';
 
 interface Player {
   id: string;
@@ -14,6 +15,7 @@ export default function NewWeekPage() {
   const router = useRouter();
   const [players, setPlayers] = useState<Player[]>([]);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [capacity, setCapacity] = useState<string>('12');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
 
@@ -37,7 +39,11 @@ export default function NewWeekPage() {
     const res = await fetch('/api/admin/weeks', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ date, attendeePlayerIds: Array.from(selected) }),
+      body: JSON.stringify({
+        date,
+        attendeePlayerIds: Array.from(selected),
+        capacity: capacity === '' ? null : Number(capacity),
+      }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -60,6 +66,42 @@ export default function NewWeekPage() {
             className="border rounded px-2 py-1"
             required
           />
+        </div>
+        <div>
+          <label className="block text-sm mb-1">Kontenjan</label>
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {CAPACITY_PRESETS.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setCapacity(String(c))}
+                className={`text-xs rounded-md px-2 py-1 border ${
+                  capacity === String(c) ? 'bg-blue-700 text-white border-blue-700' : 'bg-white border-slate-300'
+                }`}
+              >
+                {capacityLabel(c)}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setCapacity('')}
+              className={`text-xs rounded-md px-2 py-1 border ${
+                capacity === '' ? 'bg-blue-700 text-white border-blue-700' : 'bg-white border-slate-300'
+              }`}
+            >
+              Sınırsız
+            </button>
+          </div>
+          <input
+            type="number"
+            min={CAPACITY_MIN}
+            max={CAPACITY_MAX}
+            value={capacity}
+            onChange={(e) => setCapacity(e.target.value)}
+            placeholder="Sınırsız"
+            className="border rounded px-2 py-1 w-28"
+          />
+          <p className="text-xs text-slate-500 mt-1">Kontenjan dolunca yeni katılımcılar sırayla yedek listesine yazılır.</p>
         </div>
         <div>
           <label className="block text-sm mb-1">Katılımcılar (opsiyonel)</label>

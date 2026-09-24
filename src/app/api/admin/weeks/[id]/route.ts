@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { isValidWeekStatus } from '@/lib/constants';
 import { canDeleteWeek } from '@/lib/weekDeletion';
+import { AttendanceError, setWeekCapacity } from '@/lib/attendance';
 import type { SetScore } from '@/lib/matchScoring';
 
 export async function GET(_: Request, { params }: { params: { id: string } }) {
@@ -43,6 +44,19 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
   }
 
   const week = await prisma.week.update({ where: { id: params.id }, data });
+
+  if (body.capacity !== undefined) {
+    try {
+      const { promoted } = await setWeekCapacity(params.id, body.capacity);
+      const updated = await prisma.week.findUnique({ where: { id: params.id } });
+      return NextResponse.json({ week: updated, promoted });
+    } catch (err) {
+      if (err instanceof AttendanceError) {
+        return NextResponse.json({ error: err.message }, { status: err.status });
+      }
+      throw err;
+    }
+  }
   return NextResponse.json({ week });
 }
 

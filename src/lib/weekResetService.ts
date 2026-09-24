@@ -54,6 +54,7 @@ export async function resetWeekData(
   if (plan.removeAttendees) {
     // "Gelmiyorum" bildirimleri de katılım verisidir; birlikte temizlenir.
     await tx.weekAbsence.deleteMany({ where: { weekId } });
+    await tx.weekWaitlist.deleteMany({ where: { weekId } });
   }
 
   if (plan.updateStatus) {
