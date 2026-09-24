@@ -62,7 +62,10 @@ export default function NewWeekPage() {
           />
         </div>
         <div>
-          <label className="block text-sm mb-1">Katılımcılar</label>
+          <label className="block text-sm mb-1">Katılımcılar (opsiyonel)</label>
+          <p className="text-xs text-slate-500 mb-1">
+            Boş bırakabilirsin: haftayı “Yayında” yapınca oyuncular ana sayfadan “Geliyorum / Gelmiyorum” diyebilir.
+          </p>
           <div className="flex flex-col gap-1 max-h-64 overflow-y-auto border rounded p-2">
             {players.map((player) => (
               <label key={player.id} className="flex items-center gap-2">

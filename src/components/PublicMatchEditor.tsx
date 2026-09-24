@@ -5,6 +5,7 @@ import { MatchResultContent } from '@/components/WeekView';
 import { computeMatchResult, isCompletedMatch, type SetScore } from '@/lib/matchScoring';
 import { MATCH_TARGET_POINTS } from '@/lib/constants';
 import type { WeekViewData } from '@/lib/weekView';
+import { formatLabel } from '@/lib/rating';
 
 type MatchItem = WeekViewData['matches'][number];
 
@@ -149,6 +150,10 @@ function AddMatchForm({
         teamBId: data.match.teamBId,
         sets: [],
         targetPoints: data.match.targetPoints,
+        format: formatLabel(
+          week.teams.find((t) => t.id === data.match.teamAId)?.players.length ?? 0,
+          week.teams.find((t) => t.id === data.match.teamBId)?.players.length ?? 0
+        ),
         result: null,
       });
     } finally {

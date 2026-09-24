@@ -4,6 +4,7 @@ import { getWeekView } from '@/lib/weekView';
 import { WeekView } from '@/components/WeekView';
 import { WeekSummary } from '@/components/WeekSummary';
 import { PublicNav } from '@/components/PublicNav';
+import { WeekAttendanceSection, WeekBadgesSection } from '@/components/WeekExtras';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +19,9 @@ export default async function WeekPage({ params }: { params: { weekId: string } 
       </Link>
       <div className="mt-4">
         <WeekSummary week={week} />
-        <WeekView week={week} />
+        <WeekAttendanceSection weekId={week.id} status={week.status} />
+        {week.status !== 'cancelled' && <WeekView week={week} />}
+        <WeekBadgesSection weekId={week.id} />
       </div>
     </main>
   );

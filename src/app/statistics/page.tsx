@@ -28,6 +28,8 @@ interface PlayerLeaderboards {
   mostWeeksPlayed: LeaderboardEntry[];
   mostSetsWon: LeaderboardEntry[];
   bestSetDiff: LeaderboardEntry[];
+  highestLevel: LeaderboardEntry[];
+  mostPoints: LeaderboardEntry[];
 }
 
 interface MatchRecordSummary {
@@ -121,6 +123,14 @@ export default function StatisticsPage() {
 
       {!loading && !error && leaderboards && (
         <section className="space-y-6 mb-6">
+          <Leaderboard
+            title="En Yüksek Seviye"
+            entries={leaderboards.highestLevel}
+            sortBy="level"
+            note="Güncel seviye (tüm zamanlar)"
+            decimals={2}
+          />
+          <Leaderboard title="En Çok Puan" entries={leaderboards.mostPoints} sortBy="points" />
           <Leaderboard title="En Çok Maç Oynayan" entries={leaderboards.mostMatches} sortBy="matches" />
           <Leaderboard title="En Çok Galibiyet Alan" entries={leaderboards.mostWins} sortBy="wins" />
           <Leaderboard
@@ -164,12 +174,14 @@ function Leaderboard({
   sortBy,
   note,
   suffix = '',
+  decimals = 0,
 }: {
   title: string;
   entries: LeaderboardEntry[];
   sortBy: string;
   note?: string;
   suffix?: string;
+  decimals?: number;
 }) {
   return (
     <div>
@@ -190,7 +202,7 @@ function Leaderboard({
                 {MEDALS[i] ?? `${i + 1}.`} {e.name}
               </span>
               <span>
-                {e.value.toFixed(0)}
+                {e.value.toLocaleString('tr-TR', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}
                 {suffix}
               </span>
             </li>

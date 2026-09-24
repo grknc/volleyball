@@ -20,6 +20,7 @@ model Player {
   updatedAt       DateTime       @updatedAt
   teamPlayers     TeamPlayer[]
   weekAttendances WeekAttendee[]
+  weekAbsences    WeekAbsence[]
   mvps            WeeklyMvp[]
 }
 
@@ -29,6 +30,7 @@ model Week {
   status    String         @default("draft")
   createdAt DateTime       @default(now())
   attendees WeekAttendee[]
+  absences  WeekAbsence[]
   teams     Team[]
   matches   Match[]
   mvps      WeeklyMvp[]
@@ -42,6 +44,19 @@ model WeekAttendee {
   playerId String
   week     Week   @relation(fields: [weekId], references: [id], onDelete: Cascade)
   player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([weekId, playerId])
+  @@index([playerId])
+}
+
+/// Oyuncunun "Gelmiyorum" bildirimi. "Geliyorum" = WeekAttendee kaydı.
+model WeekAbsence {
+  id        String   @id @default(cuid())
+  weekId    String
+  playerId  String
+  createdAt DateTime @default(now())
+  week      Week     @relation(fields: [weekId], references: [id], onDelete: Cascade)
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
 
   @@unique([weekId, playerId])
   @@index([playerId])

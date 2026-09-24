@@ -12,14 +12,18 @@ export async function POST(request: NextRequest) {
   if (typeof date !== 'string' || isNaN(Date.parse(date))) {
     return NextResponse.json({ error: 'Geçerli bir tarih gerekli' }, { status: 400 });
   }
-  if (!Array.isArray(attendeePlayerIds) || attendeePlayerIds.length === 0) {
-    return NextResponse.json({ error: 'En az bir katılımcı seçmelisin' }, { status: 400 });
+  // Katılımcı listesi boş olabilir: hafta yayınlanınca oyuncular kendileri bildirir.
+  if (attendeePlayerIds !== undefined && !Array.isArray(attendeePlayerIds)) {
+    return NextResponse.json({ error: 'Katılımcı listesi geçersiz' }, { status: 400 });
   }
+  const ids: string[] = Array.isArray(attendeePlayerIds)
+    ? attendeePlayerIds.filter((id: unknown): id is string => typeof id === 'string')
+    : [];
   const week = await prisma.week.create({
     data: {
       date: new Date(date),
       attendees: {
-        create: attendeePlayerIds.map((playerId: string) => ({ playerId })),
+        create: ids.map((playerId) => ({ playerId })),
       },
     },
   });

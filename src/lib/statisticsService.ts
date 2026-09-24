@@ -2,6 +2,8 @@ import { prisma } from '@/lib/db';
 import { isCompletedMatch, type SetScore } from '@/lib/matchScoring';
 import { computePlayerStats } from '@/lib/playerStats';
 import { getPlayerMatchAssignments } from '@/lib/matchAssignments';
+import { getRatingSnapshot } from '@/lib/ratingService';
+import { POINTS } from '@/lib/rating';
 import {
   findBiggestBlowout,
   findClosestMatch,
@@ -109,6 +111,8 @@ export interface PlayerLeaderboards {
   mostWeeksPlayed: LeaderboardEntry[];
   mostSetsWon: LeaderboardEntry[];
   bestSetDiff: LeaderboardEntry[];
+  highestLevel: LeaderboardEntry[];
+  mostPoints: LeaderboardEntry[];
 }
 
 const LEADERBOARD_SIZE = 10;
@@ -117,7 +121,7 @@ const DEFAULT_MIN_MATCHES_FOR_WIN_RATE = 3;
 export async function getPlayerLeaderboards(scope: StatisticsScope): Promise<PlayerLeaderboards> {
   const weekIds = await resolveScopeWeekIds(scope);
 
-  const [players, assignmentsByPlayer, mvpGroups] = await Promise.all([
+  const [players, assignmentsByPlayer, mvpGroups, snapshot] = await Promise.all([
     prisma.player.findMany({ where: { isActive: true } }),
     getPlayerMatchAssignments(weekIds),
     prisma.weeklyMvp.groupBy({
@@ -125,7 +129,9 @@ export async function getPlayerLeaderboards(scope: StatisticsScope): Promise<Pla
       _count: { playerId: true },
       where: weekIds ? { weekId: { in: weekIds } } : undefined,
     }),
+    getRatingSnapshot(),
   ]);
+  const scopeWeeks = weekIds ? new Set(weekIds) : null;
   const mvpCountMap = new Map(mvpGroups.map((g) => [g.playerId, g._count.playerId]));
 
   const rows = players.map((player) => {
@@ -140,6 +146,13 @@ export async function getPlayerLeaderboards(scope: StatisticsScope): Promise<Pla
       weeksPlayed: stats.weeksPlayed,
       setsWon: stats.setsWon,
       setDiff: stats.setDiff,
+      rating: snapshot.players.get(player.id)?.rating ?? player.level,
+      ratedMatches: snapshot.players.get(player.id)?.matches ?? 0,
+      points:
+        (snapshot.players.get(player.id)?.history ?? [])
+          .filter((h) => !scopeWeeks || scopeWeeks.has(h.weekId))
+          .reduce((sum, h) => sum + h.pointsEarned, 0) +
+        (mvpCountMap.get(player.id) ?? 0) * POINTS.mvp,
     };
   });
 
@@ -160,6 +173,12 @@ export async function getPlayerLeaderboards(scope: StatisticsScope): Promise<Pla
     mostWeeksPlayed: top((r) => r.weeksPlayed),
     mostSetsWon: top((r) => r.setsWon),
     bestSetDiff: top((r) => r.setDiff),
+    highestLevel: rows
+      .filter((r) => r.ratedMatches > 0)
+      .map((r) => ({ playerId: r.playerId, name: r.name, value: r.rating }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, LEADERBOARD_SIZE),
+    mostPoints: top((r) => r.points),
   };
 }
 

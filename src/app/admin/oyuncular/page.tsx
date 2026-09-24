@@ -86,7 +86,7 @@ export default function PlayersPage() {
           />
         </div>
         <div>
-          <label className="block text-sm">Seviye (1-10)</label>
+          <label className="block text-sm">Başlangıç Seviyesi (1-10)</label>
           <input
             type="number"
             min={1}
@@ -145,7 +145,7 @@ export default function PlayersPage() {
         <thead>
           <tr className="border-b">
             <th className="py-2">İsim</th>
-            <th className="py-2">Seviye</th>
+            <th className="py-2">Başl. Seviye</th>
             <th className="py-2">Pozisyon</th>
             <th className="py-2">Boy</th>
             <th className="py-2">Foto URL</th>

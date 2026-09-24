@@ -51,6 +51,10 @@ export async function resetWeekData(
   const attendeeResult = plan.removeAttendees
     ? await tx.weekAttendee.deleteMany({ where: { weekId } })
     : { count: 0 };
+  if (plan.removeAttendees) {
+    // "Gelmiyorum" bildirimleri de katılım verisidir; birlikte temizlenir.
+    await tx.weekAbsence.deleteMany({ where: { weekId } });
+  }
 
   if (plan.updateStatus) {
     await tx.week.update({ where: { id: weekId }, data: { status: plan.resultStatus } });

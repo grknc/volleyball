@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { listPlayers, type PlayerListFilters } from '@/lib/playerService';
 import { isValidPlayerPosition } from '@/lib/constants';
 
-const SORT_VALUES = ['name', 'matches', 'wins', 'winRate', 'mvps'] as const;
+const SORT_VALUES = ['name', 'matches', 'wins', 'winRate', 'mvps', 'level', 'points'] as const;
 const ORDER_VALUES = ['asc', 'desc'] as const;
 
 export async function GET(request: NextRequest) {

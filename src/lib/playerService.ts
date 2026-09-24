@@ -1,6 +1,15 @@
 import { prisma } from '@/lib/db';
 import { getPlayerMatchAssignments } from '@/lib/matchAssignments';
 import { computePlayerStats, countDistinctWeeks } from '@/lib/playerStats';
+import { getRatingSnapshot, type RatingSnapshot } from '@/lib/ratingService';
+import { badgesForPlayer } from '@/lib/badges';
+
+function badgeSummary(snapshot: RatingSnapshot, playerId: string) {
+  const earned = badgesForPlayer(snapshot, playerId)
+    .filter((b) => b.earned)
+    .sort((a, b) => (b.earnedAt?.date ?? '').localeCompare(a.earnedAt?.date ?? ''));
+  return { badgeCount: earned.length, recentBadges: earned.slice(0, 3).map((b) => b.def.icon) };
+}
 
 export interface PlayerPublicSummary {
   id: string;
@@ -15,13 +24,21 @@ export interface PlayerPublicSummary {
   losses: number;
   winRate: number;
   mvpCount: number;
+  /** Maçlarla değişen dinamik seviye */
+  rating: number;
+  reliability: number;
+  points: number;
+  rank: number | null;
+  badgeCount: number;
+  /** Son kazanılan en fazla 3 rozetin ikonu */
+  recentBadges: string[];
 }
 
 export interface PlayerListFilters {
   search?: string;
   position?: string;
   skillLevel?: number;
-  sortBy?: 'name' | 'matches' | 'wins' | 'winRate' | 'mvps';
+  sortBy?: 'name' | 'matches' | 'wins' | 'winRate' | 'mvps' | 'level' | 'points';
   order?: 'asc' | 'desc';
   minMatches?: number;
   limit?: number;
@@ -45,17 +62,25 @@ export async function listPlayers(filters: PlayerListFilters): Promise<PlayerLis
   const limit = Math.min(filters.limit ?? DEFAULT_LIMIT, MAX_LIMIT);
   const offset = filters.offset ?? 0;
 
-  const [players, assignmentsByPlayer, mvpGroups] = await Promise.all([
+  const [players, assignmentsByPlayer, mvpGroups, snapshot] = await Promise.all([
     prisma.player.findMany({ where: { isActive: true } }),
     getPlayerMatchAssignments(),
     prisma.weeklyMvp.groupBy({ by: ['playerId'], _count: { playerId: true } }),
+    getRatingSnapshot(),
   ]);
 
   const mvpCountMap = new Map(mvpGroups.map((g) => [g.playerId, g._count.playerId]));
 
   let summaries: PlayerPublicSummary[] = players.map((player) => {
     const stats = computePlayerStats(assignmentsByPlayer.get(player.id) ?? []);
+    const rating = snapshot.players.get(player.id);
+    const rankIndex = snapshot.ranking.indexOf(player.id);
     return {
+      rating: rating?.rating ?? player.level,
+      reliability: rating?.reliability ?? 0,
+      points: rating?.points ?? 0,
+      rank: rankIndex >= 0 ? rankIndex + 1 : null,
+      ...badgeSummary(snapshot, player.id),
       id: player.id,
       name: player.name,
       position: player.position,
@@ -79,7 +104,7 @@ export async function listPlayers(filters: PlayerListFilters): Promise<PlayerLis
     summaries = summaries.filter((p) => p.position === filters.position);
   }
   if (typeof filters.skillLevel === 'number') {
-    summaries = summaries.filter((p) => p.level === filters.skillLevel);
+    summaries = summaries.filter((p) => Math.floor(p.rating) === filters.skillLevel);
   }
 
   const sortBy = filters.sortBy ?? 'name';
@@ -99,6 +124,10 @@ export async function listPlayers(filters: PlayerListFilters): Promise<PlayerLis
         return (a.winRate - b.winRate) * direction;
       case 'mvps':
         return (a.mvpCount - b.mvpCount) * direction;
+      case 'level':
+        return (a.rating - b.rating) * direction;
+      case 'points':
+        return (a.points - b.points) * direction;
       case 'name':
       default:
         return a.name.localeCompare(b.name) * direction;
@@ -148,8 +177,10 @@ export async function getPlayerDetails(playerId: string): Promise<PlayerDetail |
   });
   if (!player) return null;
 
-  const assignmentsByPlayer = await getPlayerMatchAssignments();
+  const [assignmentsByPlayer, snapshot] = await Promise.all([getPlayerMatchAssignments(), getRatingSnapshot()]);
   const assignments = assignmentsByPlayer.get(playerId) ?? [];
+  const ratingState = snapshot.players.get(playerId);
+  const rankIndex = snapshot.ranking.indexOf(playerId);
   const stats = computePlayerStats(assignments);
 
   if (stats.integrityWarnings.length > 0) {
@@ -228,6 +259,11 @@ export async function getPlayerDetails(playerId: string): Promise<PlayerDetail |
     longestWinStreak: stats.longestWinStreak,
     last10: stats.last10,
     mvpCount: player.mvps.length,
+    rating: ratingState?.rating ?? player.level,
+    reliability: ratingState?.reliability ?? 0,
+    points: ratingState?.points ?? 0,
+    rank: rankIndex >= 0 ? rankIndex + 1 : null,
+    ...badgeSummary(snapshot, playerId),
     mvpWeeks,
     recentMatches,
     teamsPlayedFor,

@@ -6,6 +6,11 @@ import { MvpPicker } from '@/components/MvpPicker';
 import { WeekStatusControl } from '@/components/WeekStatusControl';
 import { WeekResetControl } from '@/components/WeekResetControl';
 import type { WeekStatus } from '@/lib/constants';
+import { AdminAttendancePanel } from '@/components/AttendancePanel';
+import { getWeekAttendance } from '@/lib/attendance';
+import { getRatingSnapshot, ratingOf } from '@/lib/ratingService';
+
+export const dynamic = 'force-dynamic';
 
 export default async function WeekDetailPage({ params }: { params: { id: string } }) {
   const week = await prisma.week.findUnique({
@@ -19,7 +24,14 @@ export default async function WeekDetailPage({ params }: { params: { id: string 
   });
   if (!week) notFound();
 
+  const [attendance, snapshot] = await Promise.all([getWeekAttendance(week.id), getRatingSnapshot()]);
   const attendeePlayers = week.attendees.map((a) => a.player);
+  const builderAttendees = attendeePlayers.map((p) => ({
+    id: p.id,
+    name: p.name,
+    position: p.position,
+    level: Math.round(ratingOf(snapshot, p.id) * 100) / 100,
+  }));
   const setCount = week.matches.reduce(
     (sum, m) => sum + (m.sets as [number, number][]).length,
     0
@@ -43,17 +55,14 @@ export default async function WeekDetailPage({ params }: { params: { id: string 
         mvpCount={week.mvps.length}
         attendeeCount={week.attendees.length}
       />
-      <h2 className="font-semibold mb-2">Katılımcılar ({week.attendees.length})</h2>
-      <ul className="list-disc list-inside">
-        {week.attendees.map((a) => (
-          <li key={a.id}>
-            {a.player.name} (Seviye {a.player.level})
-          </li>
-        ))}
-      </ul>
+      {attendance && (
+        <div key={`${resetKey}-attendance`}>
+          <AdminAttendancePanel initial={attendance} />
+        </div>
+      )}
 
       <div key={`${resetKey}-rest`}>
-        <TeamBuilder weekId={week.id} attendees={attendeePlayers} initialTeams={week.teams} />
+        <TeamBuilder weekId={week.id} attendees={builderAttendees} initialTeams={week.teams} />
 
         <FixtureManager
           weekId={week.id}

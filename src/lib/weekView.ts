@@ -2,6 +2,8 @@ import { prisma } from '@/lib/db';
 import { computeMatchResult, isCompletedMatch, type MatchResult, type SetScore } from '@/lib/matchScoring';
 import { computeStandings, type StandingsRow } from '@/lib/standings';
 import type { WeekStatus } from '@/lib/constants';
+import { getRatingSnapshot, ratingOf } from '@/lib/ratingService';
+import { formatLabel } from '@/lib/rating';
 
 export interface WeekViewData {
   id: string;
@@ -15,7 +17,14 @@ export interface WeekViewData {
   teams: {
     id: string;
     name: string;
-    players: { id: string; name: string; level: number; avatarUrl: string | null; position: string | null }[];
+    players: {
+      id: string;
+      name: string;
+      level: number;
+      rating: number;
+      avatarUrl: string | null;
+      position: string | null;
+    }[];
   }[];
   matches: {
     id: string;
@@ -23,6 +32,7 @@ export interface WeekViewData {
     teamBId: string;
     sets: SetScore[];
     targetPoints: number | null;
+    format: string;
     result: MatchResult | null;
   }[];
   standings: StandingsRow[];
@@ -57,11 +67,16 @@ export async function getWeekView(weekId: string): Promise<WeekViewData | null> 
   });
   if (!week) return null;
 
+  const snapshot = await getRatingSnapshot();
+  const teamSize = new Map(week.teams.map((t) => [t.id, t.players.length]));
+
   const matches = week.matches.map((m) => {
     const sets = m.sets as SetScore[];
     const targetPoints = m.targetPoints ?? undefined;
     const result = isCompletedMatch({ sets }, targetPoints) ? computeMatchResult(sets, targetPoints) : null;
-    return { id: m.id, teamAId: m.teamAId, teamBId: m.teamBId, sets, targetPoints: m.targetPoints, result };
+    const format =
+      snapshot.matches.get(m.id)?.format ?? formatLabel(teamSize.get(m.teamAId) ?? 0, teamSize.get(m.teamBId) ?? 0);
+    return { id: m.id, teamAId: m.teamAId, teamBId: m.teamBId, sets, targetPoints: m.targetPoints, format, result };
   });
 
   const playedMatches = matches.filter((m) => isCompletedMatch({ sets: m.sets }));
@@ -86,6 +101,7 @@ export async function getWeekView(weekId: string): Promise<WeekViewData | null> 
         id: p.player.id,
         name: p.player.name,
         level: p.player.level,
+        rating: ratingOf(snapshot, p.player.id),
         avatarUrl: p.player.avatarUrl,
         position: p.player.position,
       })),

@@ -10,6 +10,7 @@ function createMockTx() {
     teamPlayer: { deleteMany: vi.fn() },
     weeklyMvp: { deleteMany: vi.fn() },
     weekAttendee: { deleteMany: vi.fn() },
+    weekAbsence: { deleteMany: vi.fn() },
   };
   tx.week.findUnique.mockResolvedValue({ id: 'week-1', status: 'archived' });
   tx.week.update.mockResolvedValue({ id: 'week-1', status: 'draft' });
@@ -23,6 +24,7 @@ function createMockTx() {
   tx.teamPlayer.deleteMany.mockResolvedValue({ count: 8 });
   tx.weeklyMvp.deleteMany.mockResolvedValue({ count: 1 });
   tx.weekAttendee.deleteMany.mockResolvedValue({ count: 8 });
+  tx.weekAbsence.deleteMany.mockResolvedValue({ count: 2 });
   return tx;
 }
 
@@ -65,6 +67,7 @@ describe('resetWeekData', () => {
       resetStatus: false,
     });
     expect(tx.weekAttendee.deleteMany).toHaveBeenCalledWith({ where: { weekId: 'week-1' } });
+    expect(tx.weekAbsence.deleteMany).toHaveBeenCalledWith({ where: { weekId: 'week-1' } });
   });
 
   it('updates status to draft only when resetStatus is true', async () => {

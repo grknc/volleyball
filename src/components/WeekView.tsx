@@ -1,4 +1,7 @@
+import Link from 'next/link';
 import { PlayerAvatar } from '@/components/PlayerAvatar';
+import { FormatBadge, LevelBadge } from '@/components/LevelBadge';
+import { formatLevel } from '@/lib/rating';
 import { PublicMatchEditor } from '@/components/PublicMatchEditor';
 import { isWeekEditableForScores } from '@/lib/constants';
 import type { WeekViewData } from '@/lib/weekView';
@@ -6,18 +9,26 @@ import type { WeekViewData } from '@/lib/weekView';
 export function TeamRoster({ teamId, week }: { teamId: string; week: WeekViewData }) {
   const team = week.teams.find((t) => t.id === teamId);
   if (!team) return <>{teamId}</>;
+  const avg = team.players.length > 0 ? team.players.reduce((s, p) => s + p.rating, 0) / team.players.length : 0;
   return (
     <details className="inline-block">
-      <summary className="cursor-pointer underline decoration-dotted">{team.name}</summary>
+      <summary className="cursor-pointer underline decoration-dotted">
+        {team.name}
+        {team.players.length > 0 && (
+          <span className="ml-1 text-[11px] font-normal text-slate-500">ort. {formatLevel(avg)}</span>
+        )}
+      </summary>
       <div className="mt-1.5 flex flex-wrap gap-1.5 font-normal">
         {team.players.map((p) => (
-          <span
+          <Link
             key={p.id}
-            className="inline-flex items-center gap-1.5 bg-slate-100 rounded-full pl-0.5 pr-2.5 py-0.5 text-xs text-slate-700"
+            href={`/players/${p.id}`}
+            className="inline-flex items-center gap-1.5 bg-slate-100 rounded-full pl-0.5 pr-1 py-0.5 text-xs text-slate-700 hover:bg-slate-200"
           >
             <PlayerAvatar name={p.name} avatarUrl={p.avatarUrl} sizeClassName="w-5 h-5" />
             {p.name}
-          </span>
+            <LevelBadge level={p.rating} size="xs" />
+          </Link>
         ))}
       </div>
     </details>
@@ -31,6 +42,14 @@ export function MatchResultContent({ match, week }: { match: WeekViewData['match
 
   return (
     <>
+      <div className="flex items-center justify-between mb-2">
+        <FormatBadge format={match.format} />
+        {match.result && (
+          <Link href={`/mac/${match.id}`} className="text-xs font-semibold text-blue-700">
+            Maç detayı · seviye değişimleri →
+          </Link>
+        )}
+      </div>
       <div className="flex items-center justify-between gap-3">
         <div className={`flex-1 text-sm ${winner === 'A' ? 'font-semibold' : 'text-slate-600'}`}>
           <TeamRoster teamId={match.teamAId} week={week} />

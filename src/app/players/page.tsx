@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { PlayerAvatar } from '@/components/PlayerAvatar';
 import { PublicNav } from '@/components/PublicNav';
+import { LevelBadge } from '@/components/LevelBadge';
 import { PLAYER_POSITIONS } from '@/lib/constants';
 
 interface PlayerListItem {
@@ -19,6 +20,12 @@ interface PlayerListItem {
   losses: number;
   winRate: number;
   mvpCount: number;
+  rating: number;
+  reliability: number;
+  points: number;
+  rank: number | null;
+  badgeCount: number;
+  recentBadges: string[];
 }
 
 interface PlayersResponse {
@@ -33,27 +40,36 @@ const PAGE_SIZE = 20;
 const SKILL_LEVELS = Array.from({ length: 10 }, (_, i) => i + 1);
 
 const SORT_OPTIONS = [
+  { value: 'level', label: 'Seviye' },
+  { value: 'points', label: 'Puan' },
+  { value: 'matches', label: 'En Çok Maç' },
+  { value: 'wins', label: 'En Çok Galibiyet' },
+  { value: 'winRate', label: 'Kazanma Oranı' },
+  { value: 'mvps', label: 'Haftanın Oyuncusu' },
   { value: 'name', label: 'Alfabetik' },
-  { value: 'matches', label: 'En Çok Maç Oynayan' },
-  { value: 'wins', label: 'En Çok Kazanan' },
-  { value: 'winRate', label: 'En Yüksek Kazanma Oranı' },
-  { value: 'mvps', label: 'En Fazla Haftanın Oyuncusu' },
 ] as const;
+
+type SortValue = (typeof SORT_OPTIONS)[number]['value'];
 
 export default function PlayersPage() {
   const [search, setSearch] = useState('');
   const [position, setPosition] = useState('');
   const [skillLevel, setSkillLevel] = useState('');
-  const [sortBy, setSortBy] = useState<(typeof SORT_OPTIONS)[number]['value']>('name');
-  const [order, setOrder] = useState<'asc' | 'desc'>('asc');
+  const [sortBy, setSortBy] = useState<SortValue>('level');
   const [offset, setOffset] = useState(0);
   const [data, setData] = useState<PlayersResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const s = params.get('sortBy');
+    if (s && SORT_OPTIONS.some((o) => o.value === s)) setSortBy(s as SortValue);
+  }, []);
+
+  useEffect(() => {
     setOffset(0);
-  }, [search, position, skillLevel, sortBy, order]);
+  }, [search, position, skillLevel, sortBy]);
 
   useEffect(() => {
     setLoading(true);
@@ -63,7 +79,7 @@ export default function PlayersPage() {
     if (position) params.set('position', position);
     if (skillLevel) params.set('skillLevel', skillLevel);
     params.set('sortBy', sortBy);
-    params.set('order', order);
+    params.set('order', sortBy === 'name' ? 'asc' : 'desc');
     params.set('limit', String(PAGE_SIZE));
     params.set('offset', String(offset));
 
@@ -75,26 +91,46 @@ export default function PlayersPage() {
       .then((json: PlayersResponse) => setData(json))
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false));
-  }, [search, position, skillLevel, sortBy, order, offset]);
+  }, [search, position, skillLevel, sortBy, offset]);
 
   return (
-    <main className="max-w-3xl mx-auto p-6">
+    <main className="max-w-3xl mx-auto p-4 sm:p-6">
       <PublicNav />
-      <h1 className="text-xl font-bold mb-4">Oyuncular</h1>
+      <div className="flex items-end justify-between mb-4">
+        <h1 className="text-2xl font-extrabold">Oyuncular</h1>
+        {data && <span className="text-sm text-slate-500">{data.total} oyuncu</span>}
+      </div>
 
-      <div className="flex flex-wrap gap-2 mb-2">
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="İsme göre ara"
-          aria-label="Oyuncu ara"
-          className="border rounded px-2 py-1 flex-1 min-w-[160px]"
-        />
+      <input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="🔍  İsme göre ara"
+        aria-label="Oyuncu ara"
+        className="w-full rounded-full border border-slate-300 bg-white px-4 py-2 text-sm mb-3"
+      />
+
+      <div className="flex gap-2 overflow-x-auto pb-2 mb-2 -mx-1 px-1">
+        {SORT_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => setSortBy(opt.value)}
+            aria-pressed={sortBy === opt.value}
+            className={`shrink-0 text-xs font-semibold rounded-full px-3 py-1.5 border ${
+              sortBy === opt.value ? 'bg-slate-900 text-white border-slate-900' : 'bg-white border-slate-300 text-slate-700'
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex gap-2 mb-4">
         <select
           value={position}
           onChange={(e) => setPosition(e.target.value)}
           aria-label="Pozisyona göre filtrele"
-          className="border rounded px-2 py-1"
+          className="flex-1 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm"
         >
           <option value="">Tüm Pozisyonlar</option>
           {PLAYER_POSITIONS.map((p) => (
@@ -107,48 +143,25 @@ export default function PlayersPage() {
           value={skillLevel}
           onChange={(e) => setSkillLevel(e.target.value)}
           aria-label="Seviyeye göre filtrele"
-          className="border rounded px-2 py-1"
+          className="flex-1 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm"
         >
           <option value="">Tüm Seviyeler</option>
           {SKILL_LEVELS.map((lvl) => (
             <option key={lvl} value={lvl}>
-              Seviye {lvl}
+              Seviye {lvl},00 – {lvl},99
             </option>
           ))}
-        </select>
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as (typeof SORT_OPTIONS)[number]['value'])}
-          aria-label="Sıralama"
-          className="border rounded px-2 py-1"
-        >
-          {SORT_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-        <select
-          value={order}
-          onChange={(e) => setOrder(e.target.value as 'asc' | 'desc')}
-          aria-label="Sıralama yönü"
-          className="border rounded px-2 py-1"
-        >
-          <option value="asc">Artan</option>
-          <option value="desc">Azalan</option>
         </select>
       </div>
 
       {sortBy === 'winRate' && data && (
-        <p className="text-sm text-slate-600 mb-4">
-          En az {data.minMatchesForWinRate} maç oynamış oyuncular arasında sıralanıyor.
-        </p>
+        <p className="text-xs text-slate-500 mb-3">En az {data.minMatchesForWinRate} maç oynamış oyuncular arasında.</p>
       )}
 
       {loading && (
         <div className="space-y-2" role="status" aria-label="Yükleniyor">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-10 bg-slate-100 rounded animate-pulse" />
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-16 bg-slate-100 rounded-2xl animate-pulse" />
           ))}
         </div>
       )}
@@ -161,68 +174,50 @@ export default function PlayersPage() {
 
       {!loading && !error && data && data.players.length > 0 && (
         <>
-          <table className="w-full text-left border-collapse hidden md:table">
-            <thead>
-              <tr className="border-b">
-                <th className="py-2">Oyuncu</th>
-                <th className="py-2">Pozisyon</th>
-                <th className="py-2">Seviye</th>
-                <th className="py-2">Hafta</th>
-                <th className="py-2">Maç</th>
-                <th className="py-2">G/M</th>
-                <th className="py-2">Kazanma %</th>
-                <th className="py-2">MVP</th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.players.map((player) => (
-                <tr key={player.id} className="border-b">
-                  <td className="py-2">
-                    <Link href={`/players/${player.id}`} className="flex items-center gap-2 underline">
-                      <PlayerAvatar name={player.name} avatarUrl={player.avatarUrl} sizeClassName="w-8 h-8" />
+          <ul className="flex flex-col gap-2">
+            {data.players.map((player, i) => (
+              <li key={player.id}>
+                <Link
+                  href={`/players/${player.id}`}
+                  className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm hover:border-slate-400 transition"
+                >
+                  <span className="w-6 text-center text-sm font-bold text-slate-400 tabular-nums">
+                    {sortBy === 'level' ? player.rank ?? '–' : offset + i + 1}
+                  </span>
+                  <PlayerAvatar name={player.name} avatarUrl={player.avatarUrl} sizeClassName="w-11 h-11" />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold truncate">
                       {player.name}
-                    </Link>
-                  </td>
-                  <td className="py-2">{player.position ?? '-'}</td>
-                  <td className="py-2">{player.level}</td>
-                  <td className="py-2">{player.weeksPlayed}</td>
-                  <td className="py-2">{player.matchesPlayed}</td>
-                  <td className="py-2">
-                    {player.wins}/{player.losses}
-                  </td>
-                  <td className="py-2">%{player.winRate.toFixed(0)}</td>
-                  <td className="py-2">{player.mvpCount}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <div className="md:hidden space-y-3">
-            {data.players.map((player) => (
-              <Link key={player.id} href={`/players/${player.id}`} className="block border rounded p-3">
-                <div className="flex items-center gap-2 mb-2">
-                  <PlayerAvatar name={player.name} avatarUrl={player.avatarUrl} />
-                  <span className="font-semibold">{player.name}</span>
-                </div>
-                <p className="text-sm text-slate-600">
-                  {player.position ?? 'Pozisyon belirtilmemiş'} · Seviye {player.level}
-                </p>
-                <p className="text-sm">
-                  {player.matchesPlayed} maç · {player.wins}G {player.losses}M · %
-                  {player.winRate.toFixed(0)} · {player.mvpCount} MVP
-                </p>
-              </Link>
+                      {player.recentBadges.length > 0 && (
+                        <span className="ml-1.5 text-sm" title={`${player.badgeCount} rozet`}>
+                          {player.recentBadges.join('')}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-slate-500 truncate">
+                      {player.position ?? 'Pozisyon yok'} · {player.matchesPlayed} maç · {player.wins}G {player.losses}M
+                      {player.mvpCount > 0 && ` · ⭐${player.mvpCount}`}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <LevelBadge level={player.rating} size="md" />
+                    <p className="text-[11px] text-slate-500 mt-0.5 tabular-nums">
+                      {sortBy === 'winRate' ? `%${player.winRate.toFixed(0)}` : `${player.points} puan`}
+                    </p>
+                  </div>
+                </Link>
+              </li>
             ))}
-          </div>
+          </ul>
 
           <div className="flex justify-between items-center mt-4">
             <button
               type="button"
               disabled={offset === 0}
               onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-              className="text-sm underline disabled:text-slate-400 disabled:no-underline"
+              className="text-sm font-semibold disabled:text-slate-300"
             >
-              Önceki
+              ← Önceki
             </button>
             <span className="text-sm text-slate-600">
               {offset + 1}-{Math.min(offset + PAGE_SIZE, data.total)} / {data.total}
@@ -231,9 +226,9 @@ export default function PlayersPage() {
               type="button"
               disabled={offset + PAGE_SIZE >= data.total}
               onClick={() => setOffset(offset + PAGE_SIZE)}
-              className="text-sm underline disabled:text-slate-400 disabled:no-underline"
+              className="text-sm font-semibold disabled:text-slate-300"
             >
-              Sonraki
+              Sonraki →
             </button>
           </div>
         </>

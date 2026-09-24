@@ -4,6 +4,7 @@ import { WeekView } from '@/components/WeekView';
 import { WeekSummary, WeekStatusBadge } from '@/components/WeekSummary';
 import { VolleyballInfo } from '@/components/VolleyballInfo';
 import { PublicNav } from '@/components/PublicNav';
+import { WeekAttendanceSection, WeekBadgesSection } from '@/components/WeekExtras';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,7 +41,9 @@ async function WeekViewLoader({ weekId }: { weekId: string }) {
   return (
     <>
       <WeekSummary week={week} />
+      <WeekAttendanceSection weekId={week.id} status={week.status} />
       {week.status !== 'cancelled' && <WeekView week={week} />}
+      <WeekBadgesSection weekId={week.id} />
     </>
   );
 }
