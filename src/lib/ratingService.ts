@@ -1,6 +1,11 @@
 import { prisma } from '@/lib/db';
 import { isCompletedMatch, type SetScore } from '@/lib/matchScoring';
-import { runRatingEngine, type RatingEngineResult } from '@/lib/rating';
+import {
+  runRatingEngine,
+  type RatingEngineResult,
+  type RatingMatchInput,
+  type RatingPlayerInput,
+} from '@/lib/rating';
 
 export interface RatedPlayerInfo {
   id: string;
@@ -111,6 +116,24 @@ export async function getRatingSnapshot(): Promise<RatingSnapshot> {
   }
 
   return { ...engine, playersById, matchesById, mvpsByPlayer, ranking };
+}
+
+/** Motorun girdilerini snapshot'tan yeniden kurar (ör. seviye çözücü için). */
+export function engineInputs(snapshot: RatingSnapshot): { players: RatingPlayerInput[]; matches: RatingMatchInput[] } {
+  return {
+    players: Array.from(snapshot.playersById.values()).map((p) => ({ id: p.id, baseLevel: p.baseLevel })),
+    matches: Array.from(snapshot.matchesById.values()).map((m) => ({
+      matchId: m.id,
+      weekId: m.weekId,
+      weekDate: m.weekDate,
+      createdAt: m.createdAt,
+      teamAId: m.teamA.id,
+      teamBId: m.teamB.id,
+      teamAPlayerIds: m.teamA.playerIds,
+      teamBPlayerIds: m.teamB.playerIds,
+      sets: m.sets,
+    })),
+  };
 }
 
 export function ratingOf(snapshot: RatingSnapshot, playerId: string): number {

@@ -43,3 +43,15 @@ export const WEEK_STATUS_LABELS: Record<WeekStatus, string> = {
   cancelled: 'İptal Edildi',
   archived: 'Arşivlendi',
 };
+
+export const PLAYER_LEVEL_MIN = 0.5;
+export const PLAYER_LEVEL_MAX = 10;
+
+/** Başlangıç / güncel seviye: 0,5–10 arası, ondalıklı olabilir. */
+export function isValidPlayerLevel(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= PLAYER_LEVEL_MIN && value <= PLAYER_LEVEL_MAX;
+}
+
+export function roundLevel(value: number): number {
+  return Math.round(value * 100) / 100;
+}

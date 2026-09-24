@@ -10,7 +10,7 @@ datasource db {
 model Player {
   id              String         @id @default(cuid())
   name            String
-  level           Int
+  level           Float
   position        String?
   heightCm        Int?
   avatarUrl       String?

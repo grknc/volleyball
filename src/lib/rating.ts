@@ -320,3 +320,34 @@ export function formatDelta(value: number): string {
   const sign = rounded > 0 ? '+' : rounded < 0 ? '−' : '±';
   return `${sign}${formatLevel(Math.abs(rounded))}`;
 }
+
+/**
+ * Admin bir oyuncunun GÜNCEL seviyesini elle belirlemek istediğinde, maç geçmişi yeniden
+ * oynatıldığında o seviyeye ulaşacak başlangıç seviyesini bulur (ikiye bölme yöntemi).
+ * Güncel seviye başlangıç seviyesiyle birlikte artar, bu yüzden arama güvenlidir.
+ */
+export function solveBaseLevel(
+  players: RatingPlayerInput[],
+  matches: RatingMatchInput[],
+  playerId: string,
+  targetRating: number
+): { baseLevel: number; resultingRating: number } {
+  const target = clampRating(targetRating);
+  const ratingFor = (base: number) =>
+    runRatingEngine(
+      players.map((p) => (p.id === playerId ? { ...p, baseLevel: base } : p)),
+      matches
+    ).players.get(playerId)?.rating ?? base;
+
+  let lo = RATING_MIN;
+  let hi = RATING_MAX;
+  if (ratingFor(lo) >= target) return { baseLevel: lo, resultingRating: ratingFor(lo) };
+  if (ratingFor(hi) <= target) return { baseLevel: hi, resultingRating: ratingFor(hi) };
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (ratingFor(mid) < target) lo = mid;
+    else hi = mid;
+  }
+  const baseLevel = Math.round(((lo + hi) / 2) * 1000) / 1000;
+  return { baseLevel, resultingRating: ratingFor(baseLevel) };
+}

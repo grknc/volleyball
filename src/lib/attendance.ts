@@ -207,6 +207,18 @@ export async function setAttendance(
   };
 }
 
+/** Yer açıldıysa (ör. bir katılımcı silindiğinde) yedekleri sırayla katılımcı yapar. */
+export async function refillWeek(weekId: string): Promise<number> {
+  return prisma.$transaction(async (tx) => {
+    const week = await tx.week.findUnique({ where: { id: weekId } });
+    if (!week) return 0;
+    const before = await readRoster(tx, weekId, week.capacity);
+    const filled = fillFromWaitlist(before);
+    await writeRoster(tx, weekId, before, filled.state);
+    return filled.promoted.length;
+  });
+}
+
 /** Kontenjanı değiştirir; yer açıldıysa yedekleri sırayla katılımcı yapar. */
 export async function setWeekCapacity(weekId: string, capacity: unknown): Promise<{ promoted: number }> {
   if (!isValidCapacity(capacity)) {

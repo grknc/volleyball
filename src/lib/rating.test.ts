@@ -150,3 +150,21 @@ describe('helpers', () => {
     expect(efficiency([], 6)).toBe(0);
   });
 });
+
+describe('solveBaseLevel', () => {
+  it('finds the base level that yields the requested current level', async () => {
+    const { solveBaseLevel } = await import('./rating');
+    const ms = Array.from({ length: 6 }, (_, i) =>
+      match({ matchId: `m${i}`, weekDate: new Date(2026, 0, i + 1), sets: i % 2 ? [[20, 25], [18, 25]] : [[25, 20], [25, 18]] })
+    );
+    const r = solveBaseLevel(players, ms, 'a1', 6.2);
+    expect(r.resultingRating).toBeCloseTo(6.2, 2);
+    const check = runRatingEngine(players.map((p) => (p.id === 'a1' ? { ...p, baseLevel: r.baseLevel } : p)), ms);
+    expect(check.players.get('a1')!.rating).toBeCloseTo(6.2, 2);
+  });
+
+  it('without matches base equals the target', async () => {
+    const { solveBaseLevel } = await import('./rating');
+    expect(solveBaseLevel([{ id: 'x', baseLevel: 5 }], [], 'x', 7.35).baseLevel).toBeCloseTo(7.35, 2);
+  });
+});

@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { isValidAvatarUrl, isValidPlayerPosition } from '@/lib/constants';
+import { isValidAvatarUrl, isValidPlayerLevel, isValidPlayerPosition, roundLevel } from '@/lib/constants';
+import { listAdminPlayers } from '@/lib/adminPlayers';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const players = await prisma.player.findMany({ orderBy: { name: 'asc' } });
+  const players = await listAdminPlayers();
   return NextResponse.json({ players });
 }
 
@@ -14,8 +17,8 @@ export async function POST(request: NextRequest) {
   if (typeof name !== 'string' || name.trim().length === 0) {
     return NextResponse.json({ error: 'İsim gerekli' }, { status: 400 });
   }
-  if (typeof level !== 'number' || level < 1 || level > 10) {
-    return NextResponse.json({ error: 'Seviye 1-10 arasında olmalı' }, { status: 400 });
+  if (!isValidPlayerLevel(level)) {
+    return NextResponse.json({ error: 'Seviye 0,5-10 arasında olmalı' }, { status: 400 });
   }
   if (position !== undefined && position !== null && !isValidPlayerPosition(position)) {
     return NextResponse.json({ error: 'Geçersiz pozisyon' }, { status: 400 });
@@ -37,7 +40,7 @@ export async function POST(request: NextRequest) {
   const player = await prisma.player.create({
     data: {
       name: name.trim(),
-      level,
+      level: roundLevel(level),
       position: position || null,
       heightCm: heightCm ?? null,
       avatarUrl: avatarUrl || null,
