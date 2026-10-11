@@ -63,12 +63,15 @@ model GameParticipant {
   id             String   @id @default(cuid())
   gameId         String
   name           String
+  /// Küçük harfe çevrilmiş ad; aynı oyunda aynı adı engeller.
+  nameKey        String
   isOrganizer    Boolean  @default(false)
   /// Organizatör satırında null (organizatör ayrılamaz).
   leaveTokenHash String?
   createdAt      DateTime @default(now())
   game           Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
 
+  @@unique([gameId, nameKey])
   @@index([gameId, createdAt])
 }
 ```
@@ -149,7 +152,7 @@ bileşenidir.
 | Yöntem ve yol | Yetki | İş |
 |---|---|---|
 | `POST /api/games` | yok | Oyunu ve organizatör katılımcısını tek transaction'da oluşturur. `{ id, manageToken }` döner. |
-| `PATCH /api/games/[id]` | `x-manage-token` | Alanları ve/veya durumu günceller. |
+| `PATCH /api/games/[id]` | `x-manage-token` | Gövde `{ game?, status? }`: oyun bilgilerinin tamamını ve/veya durumu günceller. |
 | `POST /api/games/[id]/participants` | yok | `{ name }` → `{ participantId, leaveToken, placement: 'confirmed' \| 'waitlisted', waitlistPosition }` |
 | `DELETE /api/games/[id]/participants/[pid]` | `x-leave-token` (kendi satırı) veya `x-manage-token` | Katılımcıyı siler. Organizatör satırı için 400. |
 | `DELETE /api/admin/games/[id]` | admin oturumu | Oyunu siler (katılımcılar cascade). |
@@ -171,7 +174,8 @@ ya da aynı ad).
 | Ödeme notu | İsteğe bağlı, en fazla 300 karakter |
 
 Aynı oyunda aynı ad (kırpılmış, büyük/küçük harf duyarsız) ikinci kez
-kullanılamaz; yanlışlıkla çift katılımı engeller.
+kullanılamaz; yanlışlıkla çift katılımı (çift tıklama dahil) engeller. Bunu
+veritabanındaki `(gameId, nameKey)` tekil kısıtı garanti eder.
 
 Kullanıcı metni her yerde düz metin olarak basılır (React varsayılan
 kaçışlaması); iletişim ve ödeme notu bağlantıya çevrilmez.
