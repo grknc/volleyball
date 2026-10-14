@@ -43,11 +43,13 @@ export default async function ManageGamePage({
           venue: game.venue,
           date,
           time,
+          durationMinutes: String(game.durationMinutes),
           capacity: String(game.capacity),
           totalCost: euroAmount(game.totalCostCents),
           organizerFree: game.organizerFree,
           organizerName: game.organizerName,
           organizerContact: game.organizerContact,
+          organizerNote: game.confirmed.find((p) => p.isOrganizer)?.note ?? '',
           paymentNote: game.paymentNote ?? '',
         }}
       />

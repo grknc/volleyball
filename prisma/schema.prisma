@@ -133,6 +133,8 @@ model Game {
   id               String            @id @default(cuid())
   venue            String
   startsAt         DateTime
+  /// Oyun süresi (dakika): 60, 90, 120, 150, 180
+  durationMinutes  Int               @default(90)
   capacity         Int
   totalCostCents   Int
   organizerFree    Boolean           @default(false)
@@ -156,6 +158,8 @@ model GameParticipant {
   /// Küçük harfe çevrilmiş ad; aynı oyunda aynı adı engeller.
   nameKey        String
   isOrganizer    Boolean  @default(false)
+  /// İsteğe bağlı kısa not (seviye, pozisyon…), en fazla 80 karakter.
+  note           String?
   /// Organizatör satırında null (organizatör ayrılamaz).
   leaveTokenHash String?
   createdAt      DateTime @default(now())

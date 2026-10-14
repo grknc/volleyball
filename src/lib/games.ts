@@ -24,6 +24,13 @@ export function isGameStatus(value: unknown): value is GameStatus {
 /** 10.000 € */
 export const MAX_TOTAL_COST_CENTS = 1_000_000;
 
+/** Seçilebilir oyun süreleri (dakika): 1, 1,5, 2, 2,5, 3 saat */
+export const GAME_DURATIONS = [60, 90, 120, 150, 180] as const;
+export const DEFAULT_GAME_DURATION = 90;
+
+/** Katılımcı notu (seviye, pozisyon…) en fazla bu kadar karakter. */
+export const NOTE_MAX = 80;
+
 export function splitRoster<T>(ordered: T[], capacity: number): { confirmed: T[]; waitlist: T[] } {
   return { confirmed: ordered.slice(0, capacity), waitlist: ordered.slice(capacity) };
 }
@@ -98,11 +105,23 @@ export interface GameInput {
   organizerName: string;
   organizerContact: string;
   paymentNote: string | null;
+  durationMinutes: number;
+  /** Organizatörün kendi katılımcı notu */
+  organizerNote: string | null;
 }
 
 export type Validation<T> = { ok: true; value: T } | { ok: false; error: string };
 
 const fail = (error: string): { ok: false; error: string } => ({ ok: false, error });
+
+/** İsteğe bağlı kısa not; boşsa null. */
+export function parseNote(value: unknown): Validation<string | null> {
+  if (value === undefined || value === null) return { ok: true, value: null };
+  if (typeof value !== 'string') return fail('Not metin olmalı');
+  if (value.trim() === '') return { ok: true, value: null };
+  const note = cleanText(value, 1, NOTE_MAX);
+  return note ? { ok: true, value: note } : fail(`Not en fazla ${NOTE_MAX} karakter olabilir`);
+}
 
 export function validateGameInput(
   raw: unknown,
@@ -155,6 +174,14 @@ export function validateGameInput(
     }
   }
 
+  const duration = r.durationMinutes === undefined ? DEFAULT_GAME_DURATION : r.durationMinutes;
+  if (typeof duration !== 'number' || !(GAME_DURATIONS as readonly number[]).includes(duration)) {
+    return fail('Süre 1, 1,5, 2, 2,5 ya da 3 saat olmalı');
+  }
+
+  const organizerNote = parseNote(r.organizerNote);
+  if (!organizerNote.ok) return organizerNote;
+
   return {
     ok: true,
     value: {
@@ -166,6 +193,8 @@ export function validateGameInput(
       organizerName,
       organizerContact,
       paymentNote,
+      durationMinutes: duration,
+      organizerNote: organizerNote.value,
     },
   };
 }
@@ -174,6 +203,7 @@ export interface GameParticipantView {
   id: string;
   name: string;
   isOrganizer: boolean;
+  note: string | null;
 }
 
 /** Veritabanı satırı; `participants` katılma sırasına göre dizilmiş olmalı. */
@@ -187,6 +217,7 @@ export interface GameRow {
   organizerName: string;
   organizerContact: string;
   paymentNote: string | null;
+  durationMinutes: number;
   status: string;
   participants: GameParticipantView[];
 }
@@ -202,6 +233,7 @@ export interface GameView {
   organizerName: string;
   organizerContact: string;
   paymentNote: string | null;
+  durationMinutes: number;
   status: GameStatus;
   confirmed: GameParticipantView[];
   waitlist: GameParticipantView[];
@@ -223,9 +255,10 @@ export function buildGameView(row: GameRow, now: Date): GameView {
     organizerName: row.organizerName,
     organizerContact: row.organizerContact,
     paymentNote: row.paymentNote,
+    durationMinutes: row.durationMinutes,
     status,
-    confirmed: confirmed.map(({ id, name, isOrganizer }) => ({ id, name, isOrganizer })),
-    waitlist: waitlist.map(({ id, name, isOrganizer }) => ({ id, name, isOrganizer })),
+    confirmed: confirmed.map(({ id, name, isOrganizer, note }) => ({ id, name, isOrganizer, note })),
+    waitlist: waitlist.map(({ id, name, isOrganizer, note }) => ({ id, name, isOrganizer, note })),
     cost: costBreakdown({
       totalCostCents: row.totalCostCents,
       capacity: row.capacity,
@@ -235,4 +268,15 @@ export function buildGameView(row: GameRow, now: Date): GameView {
     isFull: confirmed.length >= row.capacity,
     joinOpen: isJoinOpen(status, row.startsAt, now),
   };
+}
+
+/** Oyun Bul kartındaki ücret satırı. */
+export function gameListPriceLabel(game: GameView): string {
+  if (game.totalCostCents === 0) return 'Ücretsiz';
+  const total = `Saha ${formatEuro(game.totalCostCents)}`;
+  if (game.cost.perPersonCents !== null) return `${total} · Kişi başı ${formatEuro(game.cost.perPersonCents)}`;
+  if (game.cost.perPersonWhenFullCents !== null) {
+    return `${total} · Dolunca kişi başı ${formatEuro(game.cost.perPersonWhenFullCents)}`;
+  }
+  return total;
 }

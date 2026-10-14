@@ -110,6 +110,7 @@ export function GameManagePanel({ game, manageToken, initial }: GameManagePanelP
                 {p.name}
                 <span className="text-xs text-slate-500">
                   {p.isOrganizer ? ' · organizatör' : index >= game.capacity ? ' · yedek' : ''}
+                  {p.note && ` — ${p.note}`}
                 </span>
               </span>
               {!p.isOrganizer && (

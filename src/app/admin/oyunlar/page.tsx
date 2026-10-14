@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { AdminGameDeleteButton } from '@/components/AdminGameDeleteButton';
 import { GameStatusBadge } from '@/components/GameCard';
-import { formatGameDate } from '@/lib/berlinTime';
+import { formatGameDate, formatGameTimeRange } from '@/lib/berlinTime';
 import { listAllGames } from '@/lib/gameService';
 
 export const dynamic = 'force-dynamic';
@@ -28,7 +28,7 @@ export default async function AdminGamesPage() {
                 </Link>
                 <GameStatusBadge status={game.status} />
               </div>
-              <p className="text-sm text-slate-700">{formatGameDate(game.startsAt)}</p>
+              <p className="text-sm text-slate-700">{formatGameTimeRange(game.startsAt, game.durationMinutes)}</p>
               <p className="text-sm text-slate-600 break-words">
                 {game.confirmed.length}/{game.capacity} oyuncu
                 {game.waitlist.length > 0 && ` · ${game.waitlist.length} yedek`} · Organizatör:{' '}

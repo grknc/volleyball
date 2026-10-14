@@ -5,9 +5,11 @@ import {
   costBreakdown,
   euroAmount,
   formatEuro,
+  gameListPriceLabel,
   isGameStatus,
   isJoinOpen,
   nameKey,
+  parseNote,
   parseEuroToCents,
   splitRoster,
   validateGameInput,
@@ -26,11 +28,13 @@ const rawGame = (over: Record<string, unknown> = {}) => ({
   organizerName: 'Deniz',
   organizerContact: 'WhatsApp 0151 000000',
   paymentNote: 'PayPal: deniz@example.com',
+  durationMinutes: 90,
+  organizerNote: 'orta seviye',
   ...over,
 });
 
 const people = (n: number) =>
-  Array.from({ length: n }, (_, i) => ({ id: `p${i}`, name: `Oyuncu ${i}`, isOrganizer: i === 0 }));
+  Array.from({ length: n }, (_, i) => ({ id: `p${i}`, name: `Oyuncu ${i}`, isOrganizer: i === 0, note: null as string | null }));
 
 const row = (over: Partial<GameRow> = {}): GameRow => ({
   id: 'g1',
@@ -42,6 +46,7 @@ const row = (over: Partial<GameRow> = {}): GameRow => ({
   organizerName: 'Deniz',
   organizerContact: 'WhatsApp 0151 000000',
   paymentNote: null,
+  durationMinutes: 90,
   status: 'searching',
   participants: people(8),
   ...over,
@@ -218,6 +223,8 @@ describe('validateGameInput', () => {
         organizerName: 'Deniz',
         organizerContact: 'WhatsApp 0151 000000',
         paymentNote: 'PayPal: deniz@example.com',
+        durationMinutes: 90,
+        organizerNote: 'orta seviye',
       },
     });
   });
@@ -256,10 +263,26 @@ describe('validateGameInput', () => {
     ['contact too short', { organizerContact: 'ab' }],
     ['payment note too long', { paymentNote: 'x'.repeat(301) }],
     ['payment note not a string', { paymentNote: 5 }],
+    ['duration not in the list', { durationMinutes: 45 }],
+    ['duration as string', { durationMinutes: '90' }],
+    ['duration too long', { durationMinutes: 240 }],
+    ['organizer note too long', { organizerNote: 'x'.repeat(81) }],
+    ['organizer note not a string', { organizerNote: 5 }],
   ])('rejects %s', (_label, over) => {
     const result = validateGameInput(rawGame(over), opts);
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.length).toBeGreaterThan(0);
+  });
+
+  it('defaults the duration to 1,5 hours and an empty organizer note to null', () => {
+    const result = validateGameInput(rawGame({ durationMinutes: undefined, organizerNote: '  ' }), opts);
+    expect(result.ok && result.value.durationMinutes).toBe(90);
+    expect(result.ok && result.value.organizerNote).toBeNull();
+  });
+
+  it.each([60, 90, 120, 150, 180])('accepts a %i minute game', (minutes) => {
+    const result = validateGameInput(rawGame({ durationMinutes: minutes }), opts);
+    expect(result.ok && result.value.durationMinutes).toBe(minutes);
   });
 
   it('allows a past date when requireFuture is false (editing)', () => {
@@ -301,5 +324,51 @@ describe('buildGameView', () => {
 
   it('falls back to "searching" for an unknown stored status', () => {
     expect(buildGameView(row({ status: 'weird' }), NOW).status).toBe('searching');
+  });
+});
+
+describe('parseNote', () => {
+  it('treats a missing or blank note as no note', () => {
+    expect(parseNote(undefined)).toEqual({ ok: true, value: null });
+    expect(parseNote(null)).toEqual({ ok: true, value: null });
+    expect(parseNote('   ')).toEqual({ ok: true, value: null });
+  });
+
+  it('trims and collapses whitespace', () => {
+    expect(parseNote('  orta   seviye, pasör ')).toEqual({ ok: true, value: 'orta seviye, pasör' });
+  });
+
+  it('accepts 80 characters and rejects 81', () => {
+    expect(parseNote('x'.repeat(80)).ok).toBe(true);
+    expect(parseNote('x'.repeat(81)).ok).toBe(false);
+  });
+
+  it('rejects a non-string note', () => {
+    expect(parseNote(5).ok).toBe(false);
+  });
+});
+
+describe('buildGameView with duration and notes', () => {
+  it('passes the duration and participant notes through', () => {
+    const participants = people(2).map((p, i) => ({ ...p, note: i === 1 ? 'yeni başlayan' : null }));
+    const view = buildGameView(row({ durationMinutes: 120, participants }), NOW);
+    expect(view.durationMinutes).toBe(120);
+    expect(view.confirmed.map((p) => p.note)).toEqual([null, 'yeni başlayan']);
+  });
+});
+
+describe('gameListPriceLabel', () => {
+  it('shows the court total and the current per-person price', () => {
+    expect(gameListPriceLabel(buildGameView(row(), NOW))).toBe('Saha 60,00 € · Kişi başı 8,57 €');
+  });
+
+  it('shows the price when full while nobody pays yet', () => {
+    expect(gameListPriceLabel(buildGameView(row({ participants: people(1) }), NOW))).toBe(
+      'Saha 60,00 € · Dolunca kişi başı 5,45 €'
+    );
+  });
+
+  it('says free for a free game', () => {
+    expect(gameListPriceLabel(buildGameView(row({ totalCostCents: 0 }), NOW))).toBe('Ücretsiz');
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { berlinLocalToUtc, berlinParts, formatGameDate } from './berlinTime';
+import { berlinLocalToUtc, berlinParts, formatGameDate, formatGameTimeRange } from './berlinTime';
 
 describe('berlinLocalToUtc', () => {
   it('converts winter time (UTC+1)', () => {
@@ -53,5 +53,21 @@ describe('formatGameDate', () => {
     expect(text).toContain('19:00');
     expect(text).toContain('Kasım');
     expect(text).toContain('14');
+  });
+});
+
+describe('formatGameTimeRange', () => {
+  it('appends the Berlin end time and the duration', () => {
+    const text = formatGameTimeRange('2026-11-14T18:00:00.000Z', 90);
+    expect(text).toContain('14 Kasım');
+    expect(text).toMatch(/19:00–20:30 \(1,5 saat\)$/);
+  });
+
+  it('shows whole hours without a decimal', () => {
+    expect(formatGameTimeRange('2026-11-14T18:00:00.000Z', 120)).toMatch(/19:00–21:00 \(2 saat\)$/);
+  });
+
+  it('shows only the end time when the game runs past midnight', () => {
+    expect(formatGameTimeRange('2026-11-14T22:00:00.000Z', 60)).toMatch(/23:00–00:00 \(1 saat\)$/);
   });
 });

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { clearLeave, readLeave, saveLeave, type LeaveRecord } from '@/lib/gameStorage';
+import { NOTE_MAX } from '@/lib/games';
 
 interface GameJoinPanelProps {
   gameId: string;
@@ -16,6 +17,7 @@ export function GameJoinPanel({ gameId, joinOpen, isFull, participantIds }: Game
   const router = useRouter();
   const [mine, setMine] = useState<LeaveRecord | null>(null);
   const [name, setName] = useState('');
+  const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -41,7 +43,7 @@ export function GameJoinPanel({ gameId, joinOpen, isFull, participantIds }: Game
       const res = await fetch(`/api/games/${gameId}/participants`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, note }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -53,6 +55,7 @@ export function GameJoinPanel({ gameId, joinOpen, isFull, participantIds }: Game
       saveLeave(gameId, record);
       setMine(record);
       setName('');
+      setNote('');
       setNotice(
         data.placement === 'waitlisted'
           ? `Kontenjan dolu, yedek listesindesiniz (${data.waitlistPosition}. sıra).`
@@ -117,6 +120,17 @@ export function GameJoinPanel({ gameId, joinOpen, isFull, participantIds }: Game
               onChange={(e) => setName(e.target.value)}
               maxLength={40}
               required
+              className="border rounded px-2 py-1.5 w-full"
+            />
+          </div>
+          <div className="flex-1 min-w-[10rem]">
+            <label htmlFor="join-note" className="block text-sm mb-1">Not (isteğe bağlı)</label>
+            <input
+              id="join-note"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Örn. orta seviye, pasör"
+              maxLength={NOTE_MAX}
               className="border rounded px-2 py-1.5 w-full"
             />
           </div>

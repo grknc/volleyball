@@ -5,7 +5,7 @@ import { FullBadge, GameStatusBadge } from '@/components/GameCard';
 import { GameJoinPanel } from '@/components/GameJoinPanel';
 import { GameOwnerBox } from '@/components/GameOwnerBox';
 import { CopyLinkButton } from '@/components/CopyLinkButton';
-import { formatGameDate } from '@/lib/berlinTime';
+import { formatGameTimeRange } from '@/lib/berlinTime';
 import { formatEuro, type GameView } from '@/lib/games';
 import { getGameView } from '@/lib/gameService';
 
@@ -26,7 +26,7 @@ export default async function GamePage({ params }: { params: { id: string } }) {
           <GameStatusBadge status={game.status} />
           {game.isFull && <FullBadge />}
         </div>
-        <p className="text-slate-700">{formatGameDate(game.startsAt)}</p>
+        <p className="text-slate-700">{formatGameTimeRange(game.startsAt, game.durationMinutes)}</p>
       </header>
 
       <div className="flex flex-col gap-4">
@@ -55,6 +55,7 @@ export default async function GamePage({ params }: { params: { id: string } }) {
               <li key={p.id} className="break-words">
                 {p.name}
                 {p.isOrganizer && <span className="text-xs text-slate-500"> · organizatör</span>}
+                <ParticipantNote note={p.note} />
               </li>
             ))}
           </ol>
@@ -63,7 +64,10 @@ export default async function GamePage({ params }: { params: { id: string } }) {
               <h3 className="font-semibold mt-4 mb-2">Yedekler ({game.waitlist.length})</h3>
               <ol className="list-decimal list-inside text-sm space-y-1 text-slate-700">
                 {game.waitlist.map((p) => (
-                  <li key={p.id} className="break-words">{p.name}</li>
+                  <li key={p.id} className="break-words">
+                    {p.name}
+                    <ParticipantNote note={p.note} />
+                  </li>
                 ))}
               </ol>
               <p className="text-xs text-slate-500 mt-2">
@@ -77,6 +81,10 @@ export default async function GamePage({ params }: { params: { id: string } }) {
       </div>
     </main>
   );
+}
+
+function ParticipantNote({ note }: { note: string | null }) {
+  return note ? <span className="text-xs text-slate-500"> — {note}</span> : null;
 }
 
 function CostSection({ game }: { game: GameView }) {

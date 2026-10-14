@@ -6,6 +6,7 @@ import {
   cleanText,
   isJoinOpen,
   nameKey,
+  parseNote,
   type GameInput,
   type GameStatus,
   type GameView,
@@ -26,7 +27,7 @@ const PARTICIPANT_ORDER = [{ createdAt: 'asc' }, { id: 'asc' }] satisfies Prisma
 const VIEW_INCLUDE = {
   participants: {
     orderBy: PARTICIPANT_ORDER,
-    select: { id: true, name: true, isOrganizer: true },
+    select: { id: true, name: true, isOrganizer: true, note: true },
   },
 } satisfies Prisma.GameInclude;
 
@@ -38,6 +39,7 @@ function gameData(input: GameInput) {
   return {
     venue: input.venue,
     startsAt: input.startsAt,
+    durationMinutes: input.durationMinutes,
     capacity: input.capacity,
     totalCostCents: input.totalCostCents,
     organizerFree: input.organizerFree,
@@ -55,7 +57,12 @@ export async function createGame(input: GameInput): Promise<{ id: string; manage
       manageTokenHash: hashToken(manageToken),
       // Organizatör ilk katılımcıdır ve bir kontenjan kaplar.
       participants: {
-        create: { name: input.organizerName, nameKey: nameKey(input.organizerName), isOrganizer: true },
+        create: {
+          name: input.organizerName,
+          nameKey: nameKey(input.organizerName),
+          note: input.organizerNote,
+          isOrganizer: true,
+        },
       },
     },
     select: { id: true },
@@ -106,7 +113,7 @@ export async function updateGame(
         // Organizatörün adı değiştiyse katılımcı satırı da güncellenir.
         await tx.gameParticipant.updateMany({
           where: { gameId: id, isOrganizer: true },
-          data: { name: input.organizerName, nameKey: nameKey(input.organizerName) },
+          data: { name: input.organizerName, nameKey: nameKey(input.organizerName), note: input.organizerNote },
         });
       }
       if (status) await tx.game.update({ where: { id }, data: { status } });
@@ -127,9 +134,16 @@ export interface JoinResult {
   waitlistPosition: number | null;
 }
 
-export async function joinGame(id: string, rawName: unknown, now: Date = new Date()): Promise<JoinResult> {
+export async function joinGame(
+  id: string,
+  rawName: unknown,
+  rawNote: unknown,
+  now: Date = new Date()
+): Promise<JoinResult> {
   const name = cleanText(rawName, 2, 40);
   if (!name) throw new GameError('Ad 2–40 karakter olmalı', 400);
+  const note = parseNote(rawNote);
+  if (!note.ok) throw new GameError(note.error, 400);
 
   const game = await prisma.game.findUnique({
     where: { id },
@@ -144,7 +158,7 @@ export async function joinGame(id: string, rawName: unknown, now: Date = new Dat
   let participantId: string;
   try {
     const created = await prisma.gameParticipant.create({
-      data: { gameId: id, name, nameKey: nameKey(name), leaveTokenHash: hashToken(leaveToken) },
+      data: { gameId: id, name, nameKey: nameKey(name), note: note.value, leaveTokenHash: hashToken(leaveToken) },
       select: { id: true },
     });
     participantId = created.id;

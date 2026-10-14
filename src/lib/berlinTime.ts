@@ -55,3 +55,15 @@ export function berlinLocalToUtc(date: string, time: string): Date | null {
 export function formatGameDate(value: Date | string): string {
   return DISPLAY.format(new Date(value));
 }
+
+/** 90 → "1,5 saat" */
+export function formatDurationHours(minutes: number): string {
+  return `${String(minutes / 60).replace('.', ',')} saat`;
+}
+
+/** "14 Kasım 2026 Cumartesi 19:00–20:30 (1,5 saat)" */
+export function formatGameTimeRange(startsAt: Date | string, durationMinutes: number): string {
+  const start = new Date(startsAt);
+  const end = berlinParts(new Date(start.getTime() + durationMinutes * 60_000));
+  return `${formatGameDate(start)}–${end.time} (${formatDurationHours(durationMinutes)})`;
+}

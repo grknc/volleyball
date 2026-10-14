@@ -3,17 +3,21 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { CAPACITY_MAX, CAPACITY_MIN } from '@/lib/capacity';
+import { formatDurationHours } from '@/lib/berlinTime';
 import { saveManageToken } from '@/lib/gameStorage';
+import { DEFAULT_GAME_DURATION, GAME_DURATIONS, NOTE_MAX } from '@/lib/games';
 
 export interface GameFormValues {
   venue: string;
   date: string;
   time: string;
+  durationMinutes: string;
   capacity: string;
   totalCost: string;
   organizerFree: boolean;
   organizerName: string;
   organizerContact: string;
+  organizerNote: string;
   paymentNote: string;
 }
 
@@ -21,11 +25,13 @@ const EMPTY: GameFormValues = {
   venue: '',
   date: '',
   time: '19:00',
+  durationMinutes: String(DEFAULT_GAME_DURATION),
   capacity: '12',
   totalCost: '',
   organizerFree: false,
   organizerName: '',
   organizerContact: '',
+  organizerNote: '',
   paymentNote: '',
 };
 
@@ -57,7 +63,7 @@ export function GameForm({ gameId, manageToken, initial }: GameFormProps) {
     setBusy(true);
     setError(null);
     setSaved(false);
-    const game = { ...values, capacity: Number(values.capacity) };
+    const game = { ...values, capacity: Number(values.capacity), durationMinutes: Number(values.durationMinutes) };
     try {
       const res = isEdit
         ? await fetch(`/api/games/${gameId}`, {
@@ -130,6 +136,22 @@ export function GameForm({ gameId, manageToken, initial }: GameFormProps) {
       </div>
       <p className="text-xs text-slate-500 -mt-2">Saat Almanya saatine göredir.</p>
 
+      <div>
+        <label htmlFor="game-duration" className="block text-sm mb-1">Süre</label>
+        <select
+          id="game-duration"
+          value={values.durationMinutes}
+          onChange={(e) => set('durationMinutes', e.target.value)}
+          className={INPUT}
+        >
+          {GAME_DURATIONS.map((minutes) => (
+            <option key={minutes} value={minutes}>
+              {formatDurationHours(minutes)}
+            </option>
+          ))}
+        </select>
+      </div>
+
       <div className="flex gap-3">
         <div className="flex-1">
           <label htmlFor="game-capacity" className="block text-sm mb-1">Oyuncu sayısı</label>
@@ -183,6 +205,19 @@ export function GameForm({ gameId, manageToken, initial }: GameFormProps) {
           className={INPUT}
         />
         <p className="text-xs text-slate-500 mt-1">Organizatör olarak ilk oyuncu siz olursunuz.</p>
+      </div>
+
+      <div>
+        <label htmlFor="game-organizer-note" className="block text-sm mb-1">Notunuz (isteğe bağlı)</label>
+        <input
+          id="game-organizer-note"
+          value={values.organizerNote}
+          onChange={(e) => set('organizerNote', e.target.value)}
+          placeholder="Örn. orta seviye, pasör"
+          maxLength={NOTE_MAX}
+          className={INPUT}
+        />
+        <p className="text-xs text-slate-500 mt-1">Oyuncu listesinde adınızın yanında görünür.</p>
       </div>
 
       <div>

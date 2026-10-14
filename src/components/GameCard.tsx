@@ -1,6 +1,6 @@
 import Link from 'next/link';
-import { formatGameDate } from '@/lib/berlinTime';
-import { GAME_STATUS_LABELS, formatEuro, type GameStatus, type GameView } from '@/lib/games';
+import { formatGameTimeRange } from '@/lib/berlinTime';
+import { GAME_STATUS_LABELS, gameListPriceLabel, type GameStatus, type GameView } from '@/lib/games';
 
 const STATUS_STYLES: Record<GameStatus, string> = {
   searching: 'bg-amber-100 text-amber-800',
@@ -20,13 +20,6 @@ export function FullBadge() {
   return <span className="text-xs rounded-full px-2 py-0.5 font-medium bg-blue-100 text-blue-800">Dolu</span>;
 }
 
-export function gamePriceLabel(game: GameView): string {
-  if (game.totalCostCents === 0) return 'Ücretsiz';
-  return game.cost.perPersonCents === null
-    ? `Toplam ${formatEuro(game.totalCostCents)}`
-    : `Kişi başı ${formatEuro(game.cost.perPersonCents)}`;
-}
-
 export function GameCard({ game }: { game: GameView }) {
   return (
     <Link
@@ -38,10 +31,10 @@ export function GameCard({ game }: { game: GameView }) {
         <GameStatusBadge status={game.status} />
         {game.isFull && <FullBadge />}
       </div>
-      <p className="text-sm text-slate-700">{formatGameDate(game.startsAt)}</p>
+      <p className="text-sm text-slate-700">{formatGameTimeRange(game.startsAt, game.durationMinutes)}</p>
       <p className="text-sm text-slate-600 mt-1">
         {game.confirmed.length}/{game.capacity} oyuncu
-        {game.waitlist.length > 0 && ` · ${game.waitlist.length} yedek`} · {gamePriceLabel(game)}
+        {game.waitlist.length > 0 && ` · ${game.waitlist.length} yedek`} · {gameListPriceLabel(game)}
       </p>
       <p className="text-xs text-slate-500 mt-1 break-words">Organizatör: {game.organizerName}</p>
     </Link>
