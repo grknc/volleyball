@@ -6,6 +6,7 @@ import { useState } from 'react';
 
 const LINKS = [
   { href: '/', label: 'Ana Sayfa' },
+  { href: '/oyunlar', label: 'Oyun Bul' },
   { href: '/players', label: 'Oyuncular' },
   { href: '/statistics', label: 'İstatistikler' },
   { href: '/arsiv', label: 'Geçmiş Haftalar' },
