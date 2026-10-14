@@ -127,3 +127,40 @@ model WeeklyMvp {
   @@unique([weekId, playerId])
   @@index([playerId])
 }
+
+/// Herkese açık "Oyun Bul / Oyun Oluştur". Week/Player yapısından bağımsızdır.
+model Game {
+  id               String            @id @default(cuid())
+  venue            String
+  startsAt         DateTime
+  capacity         Int
+  totalCostCents   Int
+  organizerFree    Boolean           @default(false)
+  organizerName    String
+  organizerContact String
+  paymentNote      String?
+  /// "searching" | "reserved" | "cancelled"
+  status           String            @default("searching")
+  manageTokenHash  String
+  createdAt        DateTime          @default(now())
+  participants     GameParticipant[]
+
+  @@index([startsAt])
+}
+
+/// Katılma sırası (createdAt, id). İlk `capacity` kişi kesin, kalanı yedek.
+model GameParticipant {
+  id             String   @id @default(cuid())
+  gameId         String
+  name           String
+  /// Küçük harfe çevrilmiş ad; aynı oyunda aynı adı engeller.
+  nameKey        String
+  isOrganizer    Boolean  @default(false)
+  /// Organizatör satırında null (organizatör ayrılamaz).
+  leaveTokenHash String?
+  createdAt      DateTime @default(now())
+  game           Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, nameKey])
+  @@index([gameId, createdAt])
+}
