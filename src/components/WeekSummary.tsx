@@ -32,7 +32,8 @@ function StatCard({ icon, label, value }: { icon: string; label: string; value: 
   );
 }
 
-export function WeekSummary({ week }: { week: WeekViewData }) {
+/** `footer`: kartın altına eklenen isteğe bağlı satır (ör. ana sayfadaki katılım şeridi). */
+export function WeekSummary({ week, footer }: { week: WeekViewData; footer?: React.ReactNode }) {
   const mvp = week.mvps[0];
 
   return (
@@ -63,6 +64,7 @@ export function WeekSummary({ week }: { week: WeekViewData }) {
         <StatCard icon="🎯" label="Maç" value={week.matchCount} />
         <StatCard icon="🔥" label="Set" value={week.setCount} />
       </section>
+      {footer}
     </div>
   );
 }

@@ -4,7 +4,8 @@ import { WeekView } from '@/components/WeekView';
 import { WeekSummary, WeekStatusBadge } from '@/components/WeekSummary';
 import { VolleyballInfo } from '@/components/VolleyballInfo';
 import { PublicNav } from '@/components/PublicNav';
-import { WeekAttendanceSection, WeekBadgesSection } from '@/components/WeekExtras';
+import { WeekAttendanceStrip, WeekBadgesSection } from '@/components/WeekExtras';
+import { HomeGames } from '@/components/HomeGames';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,6 +18,7 @@ export default async function HomePage() {
   return (
     <main className="max-w-3xl mx-auto p-6">
       <PublicNav />
+      <HomeGames />
       {!latestWeek ? <NoActiveWeekMessage /> : <WeekViewLoader weekId={latestWeek.id} />}
       <NextEventSection afterDate={latestWeek?.date ?? new Date()} />
       <VolleyballInfo />
@@ -40,8 +42,7 @@ async function WeekViewLoader({ weekId }: { weekId: string }) {
   if (!week) return null;
   return (
     <>
-      <WeekSummary week={week} />
-      <WeekAttendanceSection weekId={week.id} status={week.status} />
+      <WeekSummary week={week} footer={<WeekAttendanceStrip weekId={week.id} status={week.status} />} />
       {week.status !== 'cancelled' && <WeekView week={week} />}
       <WeekBadgesSection weekId={week.id} />
     </>
