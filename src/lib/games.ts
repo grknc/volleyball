@@ -77,9 +77,12 @@ export function cleanText(value: unknown, min: number, max: number): string | nu
   return text.length >= min && text.length <= max ? text : null;
 }
 
-/** Aynı oyunda aynı adın ikinci kez kullanılmasını engelleyen anahtar. */
+/**
+ * Aynı oyunda aynı adın ikinci kez kullanılmasını engelleyen anahtar.
+ * tr-TR "I"yı "ı" yapar; Almanca adlar (Ingo) da eşleşsin diye "ı" → "i".
+ */
 export function nameKey(name: string): string {
-  return name.toLocaleLowerCase('tr-TR');
+  return name.normalize('NFC').toLocaleLowerCase('tr-TR').replace(/ı/g, 'i');
 }
 
 export function isJoinOpen(status: string, startsAt: Date, now: Date): boolean {

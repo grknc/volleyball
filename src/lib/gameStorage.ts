@@ -1,6 +1,6 @@
 // Tarayıcıda çalışır. localStorage kapalı olabilir (gizli pencere, engellenmiş
-// site verisi); bu durumda sessizce boş döner — katılma yine çalışır, yalnızca
-// sayfa yenilenince "Ayrıl" düğmesi kaybolur.
+// site verisi); bu durumda kayıtlar yalnızca bellekte tutulur — katılma yine
+// çalışır, sayfa yenilenince "Ayrıl" düğmesi ve yönetim kutusu kaybolur.
 
 export interface LeaveRecord {
   participantId: string;
@@ -10,15 +10,23 @@ export interface LeaveRecord {
 const manageKey = (gameId: string) => `oyun:${gameId}:manage`;
 const leaveKey = (gameId: string) => `oyun:${gameId}:leave`;
 
+// localStorage kullanılamazsa sayfa içi gezinmeler boyunca bellekte tutulur;
+// böylece oyun oluşturulduktan hemen sonra yönetim bağlantısı yine görünür.
+const memory = new Map<string, string>();
+
 function read(key: string): string | null {
   try {
-    return window.localStorage.getItem(key);
+    const value = window.localStorage.getItem(key);
+    if (value !== null) return value;
   } catch {
-    return null;
+    // yoksay
   }
+  return memory.get(key) ?? null;
 }
 
 function write(key: string, value: string | null): void {
+  if (value === null) memory.delete(key);
+  else memory.set(key, value);
   try {
     if (value === null) window.localStorage.removeItem(key);
     else window.localStorage.setItem(key, value);

@@ -165,6 +165,15 @@ describe('nameKey', () => {
     expect(nameKey('ALİ')).toBe(nameKey('ali'));
   });
 
+  it('treats plain capital I like i (German names in a Berlin game)', () => {
+    expect(nameKey('Ingo')).toBe(nameKey('ingo'));
+    expect(nameKey('IPEK')).toBe(nameKey('ipek'));
+  });
+
+  it('treats composed and decomposed accents as the same name', () => {
+    expect(nameKey('René')).toBe(nameKey('René'));
+  });
+
   it('keeps different names apart', () => {
     expect(nameKey('Ali')).not.toBe(nameKey('Veli'));
   });
