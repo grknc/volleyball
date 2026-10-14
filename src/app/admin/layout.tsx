@@ -7,6 +7,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <span className="font-bold">Yönetim Paneli</span>
         <a href="/admin/oyuncular" className="hover:underline">Oyuncular</a>
         <a href="/admin/haftalar" className="hover:underline">Haftalar</a>
+        <a href="/admin/oyunlar" className="hover:underline">Oyunlar</a>
         <div className="ml-auto">
           <LogoutButton />
         </div>
